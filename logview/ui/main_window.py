@@ -100,7 +100,7 @@ class MainWindow(QMainWindow):
     def __init__(self, config: Dict[str, Any]):
         super().__init__()
         self.config = config
-        self.setWindowTitle("Sagittarius Log Viewer")
+        self.setWindowTitle("Log Viewer")
         self.resize(1280, 800)
 
         # Setup Theme/Style

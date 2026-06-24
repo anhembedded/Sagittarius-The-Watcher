@@ -49,12 +49,21 @@ class FileTailReceiver:
             # Go to the end of the file
             f.seek(0, io.SEEK_END)
 
+            idle_time = 0.0
+
             while self._running:
                 line = await loop.run_in_executor(None, f.readline)
                 if not line:
                     await asyncio.sleep(0.1)
+                    idle_time += 0.1
+                    if idle_time >= 0.2:  # Flush after 200ms of inactivity
+                        entry = buf.flush()
+                        if entry:
+                            await self.queue.put(entry)
+                        idle_time = 0.0
                     continue
 
+                idle_time = 0.0
                 entry = buf.feed(line)
                 if entry:
                     await self.queue.put(entry)
@@ -115,6 +124,11 @@ class TCPServerReceiver:
         """Reads lines from stdin using MultiLineBuffer."""
         loop = asyncio.get_running_loop()
         buf = MultiLineBuffer(self.parser)
+        # Note: sys.stdin.readline blocking makes inactivity timeout hard for stdin without select,
+        # but if we can't do non-blocking, we just flush when line is received, or wait for EOF.
+        # Alternatively, since we can't easily timeout a blocking readline, we leave it,
+        # or we could use a separate task to timeout. For now, since stdin usually EOFs at the end
+        # of the stream, it's less of an issue than a live file or TCP server.
         while self._running:
             line = await loop.run_in_executor(None, sys.stdin.readline)
             if not line:
@@ -145,13 +159,20 @@ class TCPServerReceiver:
 
         try:
             while self._running:
-                line_bytes = await reader.readline()
-                if not line_bytes:
-                    break
-                line = line_bytes.decode('utf-8', errors='replace')
-                entry = buf.feed(line)
-                if entry:
-                    await self.queue.put(entry)
+                try:
+                    # Use a timeout to detect inactivity and flush the buffer
+                    line_bytes = await asyncio.wait_for(reader.readline(), timeout=0.2)
+                    if not line_bytes:
+                        break
+                    line = line_bytes.decode('utf-8', errors='replace')
+                    entry = buf.feed(line)
+                    if entry:
+                        await self.queue.put(entry)
+                except asyncio.TimeoutError:
+                    # Inactivity timeout reached, flush pending log
+                    entry = buf.flush()
+                    if entry:
+                        await self.queue.put(entry)
         except asyncio.CancelledError:
             pass
         except Exception:
