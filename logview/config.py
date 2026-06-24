@@ -20,6 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--host", type=str, help="TCP Server Host")
     parser.add_argument("--port", type=int, help="TCP Server Port")
     parser.add_argument("--listen-stdin", action="store_true", help="Listen from stdin instead of TCP")
+    parser.add_argument("--tail-file", type=str, help="Path to a file to tail instead of TCP/stdin")
     return parser.parse_args()
 
 
@@ -106,5 +107,8 @@ def get_config() -> Dict[str, Any]:
     if args.port is not None:
         config["server"]["port"] = args.port
     config["listen_stdin"] = args.listen_stdin
+
+    if args.tail_file is not None:
+        config["tail_file"] = args.tail_file
 
     return config

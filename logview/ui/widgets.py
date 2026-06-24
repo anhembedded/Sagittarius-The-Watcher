@@ -4,6 +4,8 @@ from textual.widgets import Select, Input, Static, Label
 from textual.events import InputEvent
 
 
+from textual.widgets import Checkbox
+
 class FilterBar(Horizontal):
     """Bar containing filter controls (level and keyword)."""
 
@@ -18,7 +20,8 @@ class FilterBar(Horizontal):
         ]
         yield Label("Level:")
         yield Select(levels, value="ALL", id="level_select")
-        yield Label("Filter:")
+        yield Checkbox("Regex", id="regex_toggle", value=False)
+        yield Label("Filter:", id="filter_label")
         yield Input(placeholder="Keyword...", id="keyword_filter")
 
 
@@ -26,11 +29,13 @@ class StatusBar(Horizontal):
     """Bar displaying current app status."""
 
     def compose(self) -> ComposeResult:
-        yield Label("Status: Running", id="status_label")
+        yield Label("▶️ Running", id="status_label")
         yield Label(" | ", classes="separator")
         yield Label("Showing: 0 / 0", id="count_label")
         yield Label(" | ", classes="separator")
-        yield Label("Keys: [Space] Pause/Resume [Ctrl+L] Clear [Ctrl+S] Save [/] Search [q] Quit", id="keys_label")
+        yield Label("", id="stats_label")
+        yield Label(" | ", classes="separator")
+        yield Label("Keys: [?] Help", id="keys_label")
 
 
 class SearchBar(Horizontal):

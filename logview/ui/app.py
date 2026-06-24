@@ -4,15 +4,16 @@ from typing import List, Optional
 
 from rich.text import Text
 from textual.app import App, ComposeResult
-from textual.widgets import RichLog, Input, Select, Label
+from textual.widgets import Input, Select, Label
 from textual.binding import Binding
 from textual.events import Key
 
 from logview.models import LogEntry
-from logview.receiver import TCPServerReceiver
+from logview.receiver import TCPServerReceiver, FileTailReceiver
 from logview.log_parser import LogParser
 from logview.ui.widgets import FilterBar, StatusBar, SearchBar
 from logview.ui.dialogs import SaveDialog
+from logview.ui.custom_log_list import CustomLogList
 from logview.config import get_config
 from logview.export import export_logs
 
@@ -34,6 +35,10 @@ class LogViewerApp(App):
         Binding("ctrl+l", "clear_logs", "Clear Logs"),
         Binding("ctrl+s", "save_logs", "Save Logs"),
         Binding("slash", "toggle_search", "Search"),
+        Binding("b", "toggle_bookmark", "Bookmark"),
+        Binding("B", "jump_next_bookmark", "Next Bookmark"),
+        Binding("t", "toggle_theme", "Toggle Theme"),
+        Binding("question_mark", "show_help", "Help"),
         Binding("q", "quit", "Quit"),
     ]
 
@@ -59,20 +64,42 @@ class LogViewerApp(App):
     def compose(self) -> ComposeResult:
         """Compose the UI layout."""
         yield FilterBar()
-        yield RichLog(id="log_view", auto_scroll=True, markup=True, highlight=True)
+        yield CustomLogList(id="log_view")
         yield SearchBar(id="search_bar")
         yield StatusBar()
 
     async def on_mount(self) -> None:
         """Called when app starts."""
+
+        # Set window title
+        host = self.config["server"]["host"]
+        port = self.config["server"]["port"]
+        self.title = f"Log Viewer - [{host}:{port}]"
+
+        # Initialize Theme
+        if self.config.get("theme", "dark") == "light":
+            self.theme = "textual-light"
+        else:
+            self.theme = "textual-dark"
+
         parser = LogParser(self.config["log_format"]["pattern"])
-        self.receiver = TCPServerReceiver(
-            host=self.config["server"]["host"],
-            port=self.config["server"]["port"],
-            parser=parser,
-            queue=self.queue,
-            listen_stdin=self.config.get("listen_stdin", False)
-        )
+
+        if "tail_file" in self.config:
+            self.title = f"Log Viewer - Tail: {self.config['tail_file']}"
+            self.receiver = FileTailReceiver(
+                filepath=self.config["tail_file"],
+                parser=parser,
+                queue=self.queue
+            )
+        else:
+            self.receiver = TCPServerReceiver(
+                host=host,
+                port=port,
+                parser=parser,
+                queue=self.queue,
+                listen_stdin=self.config.get("listen_stdin", False)
+            )
+
         await self.receiver.start()
         # Start the background task to consume logs
         self.run_worker(self.consume_logs(), exclusive=True, thread=False)
@@ -118,52 +145,41 @@ class LogViewerApp(App):
             if entry_level_val < filter_level_val:
                 return False
 
-        # Keyword filter
+        # Keyword / Regex filter
         if self.current_keyword:
-            if self.current_keyword.lower() not in entry.raw.lower():
-                return False
+            try:
+                # Always attempt to use the regex approach if regex mode is on, else simple matching
+                is_regex = False
+                try:
+                    from textual.widgets import Checkbox
+                    regex_toggle = self.query_one("#regex_toggle", Checkbox)
+                    is_regex = regex_toggle.value
+                except Exception:
+                    pass
+
+                if is_regex:
+                    import re
+                    if not re.search(self.current_keyword, entry.raw):
+                        return False
+                else:
+                    if self.current_keyword.lower() not in entry.raw.lower():
+                        return False
+            except Exception:
+                # If regex fails, we just don't match, or fallback
+                pass
 
         return True
 
     def write_to_log(self, entry: LogEntry):
-        """Formats and writes a single log entry to the RichLog."""
-        log_view = self.query_one(RichLog)
-
-        # Formatting text based on level
-        text = Text(entry.raw)
-
-        # Basic highlight
-        if entry.level == "DEBUG":
-            text.stylize("bright_black")
-        elif entry.level == "INFO":
-            text.stylize("green")
-        elif entry.level == "WARNING":
-            text.stylize("yellow")
-        elif entry.level == "ERROR":
-            text.stylize("red")
-        elif entry.level == "CRITICAL":
-            text.stylize("bold white on red")
-
-        # Highlight search term if active
-        if self.search_term and self.search_term.lower() in entry.raw.lower():
-            # A simple manual highlight for the search term
-            term_len = len(self.search_term)
-            start = 0
-            raw_lower = entry.raw.lower()
-            search_lower = self.search_term.lower()
-            while True:
-                idx = raw_lower.find(search_lower, start)
-                if idx == -1:
-                    break
-                text.stylize("black on yellow", idx, idx + term_len)
-                start = idx + term_len
-
-        log_view.write(text)
+        """Formats and writes a single log entry to the CustomLogList."""
+        log_view = self.query_one(CustomLogList)
+        is_even = len(log_view.children) % 2 == 0
+        log_view.append_log(entry, search_term=self.search_term, is_even=is_even)
 
     def refresh_log_view(self):
         """Clears and redraws the log view based on current filters and memory list."""
-        log_view = self.query_one(RichLog)
-        log_view.clear()
+        log_view = self.query_one(CustomLogList)
+        log_view.clear_logs()
 
         self.filtered_logs = []
         for entry in self.all_logs:
@@ -176,8 +192,13 @@ class LogViewerApp(App):
         # Update search results
         self.update_search_results()
 
-        for entry in self.filtered_logs:
-            self.write_to_log(entry)
+        for i, entry in enumerate(self.filtered_logs):
+            is_even = i % 2 == 0
+            # Suppress new animations on mass refresh
+            was_new = entry.is_new
+            entry.is_new = False
+            log_view.append_log(entry, search_term=self.search_term, is_even=is_even)
+            entry.is_new = was_new
 
         self.update_status_bar()
 
@@ -186,11 +207,22 @@ class LogViewerApp(App):
         try:
             status_label = self.query_one("#status_label", Label)
             count_label = self.query_one("#count_label", Label)
+            stats_label = self.query_one("#stats_label", Label)
 
-            status_text = "Paused" if self.is_paused else "Running"
-            status_label.update(f"Status: {status_text}")
+            status_text = "⏸️ Paused" if self.is_paused else "▶️ Running"
+            status_label.update(status_text)
 
             count_label.update(f"Showing: {len(self.filtered_logs)} / {len(self.all_logs)}")
+
+            # Level stats
+            counts = {"ERR": 0, "WRN": 0, "CRI": 0}
+            for e in self.all_logs:
+                if e.level == "ERROR": counts["ERR"] += 1
+                elif e.level == "WARNING": counts["WRN"] += 1
+                elif e.level == "CRITICAL": counts["CRI"] += 1
+
+            stats_text = f"ERR:{counts['ERR']} WRN:{counts['WRN']} CRI:{counts['CRI']}"
+            stats_label.update(stats_text)
         except Exception:
             pass
 
@@ -204,10 +236,57 @@ class LogViewerApp(App):
         """Handle keyword filter changes."""
         if event.input.id == "keyword_filter":
             self.current_keyword = event.value
+
+            # Check for regex error
+            is_regex = False
+            try:
+                from textual.widgets import Checkbox
+                regex_toggle = self.query_one("#regex_toggle", Checkbox)
+                is_regex = regex_toggle.value
+            except Exception:
+                pass
+
+            input_widget = self.query_one("#keyword_filter", Input)
+            if is_regex and self.current_keyword:
+                import re
+                try:
+                    re.compile(self.current_keyword)
+                    input_widget.remove_class("-error")
+                    self.query_one("#filter_label", Label).update("Filter:")
+                except re.error as e:
+                    input_widget.add_class("-error")
+                    self.query_one("#filter_label", Label).update(f"Regex Error: {e}")
+                    return # Don't update view if regex is invalid
+            else:
+                input_widget.remove_class("-error")
+                self.query_one("#filter_label", Label).update("Filter:")
+
             self.refresh_log_view()
         elif event.input.id == "search_input":
             self.search_term = event.value
             self.update_search_results()
+            self.refresh_log_view()
+
+    async def on_checkbox_changed(self, event) -> None:
+        if event.checkbox.id == "regex_toggle":
+            # Re-trigger input changed logic to validate
+            input_widget = self.query_one("#keyword_filter", Input)
+            self.current_keyword = input_widget.value
+
+            if event.value and self.current_keyword:
+                import re
+                try:
+                    re.compile(self.current_keyword)
+                    input_widget.remove_class("-error")
+                    self.query_one("#filter_label", Label).update("Regex:")
+                except re.error as e:
+                    input_widget.add_class("-error")
+                    self.query_one("#filter_label", Label).update(f"Regex Error: {e}")
+                    return
+            else:
+                input_widget.remove_class("-error")
+                self.query_one("#filter_label", Label).update("Filter:")
+
             self.refresh_log_view()
 
     async def on_key(self, event: Key) -> None:
@@ -231,18 +310,10 @@ class LogViewerApp(App):
 
         self.update_search_label()
 
-        # In Textual, RichLog inherits from ScrollView, so we can calculate scroll position.
-        # We know each log entry is roughly 1 line, or we can use scroll_to.
-        # Since text wraps, it's not exactly 1-to-1, but scrolling to the approx Y index usually helps.
         target_index = self.search_results_indices[self.current_search_index]
-        log_view = self.query_one(RichLog)
+        log_view = self.query_one(CustomLogList)
 
-        # Turn off auto_scroll so it doesn't snap to bottom while we search
-        log_view.auto_scroll = False
-        # Calculate Y. This assumes mostly 1 line per log.
-        # A more precise way in RichLog would require measuring the lines of each entry,
-        # but y=target_index is the best approximation for a fast built-in list.
-        log_view.scroll_to(y=target_index)
+        log_view.index = target_index
 
     def update_search_results(self):
         """Finds all indices of matching logs in the current filtered view."""
@@ -289,10 +360,13 @@ class LogViewerApp(App):
 
     def action_save_logs(self) -> None:
         """Saves current filtered logs to a file."""
-        def check_save(filename: str):
+        def check_save(result: tuple):
+            filename, fmt = result
             if filename:
+                if not filename.endswith(f".{fmt}"):
+                    filename += f".{fmt}"
                 try:
-                    export_logs(self.filtered_logs, filename)
+                    export_logs(self.filtered_logs, filename, format=fmt)
                     self.notify(f"Saved logs to {filename}", title="Export Success")
                 except Exception as e:
                     self.notify(f"Failed to save logs: {e}", title="Export Error", severity="error")
@@ -310,5 +384,18 @@ class LogViewerApp(App):
             self.search_term = ""
             self.query_one("#search_input", Input).value = ""
             # Return focus to list/app
-            self.query_one(RichLog).focus()
+            self.query_one(CustomLogList).focus()
             self.refresh_log_view()
+
+    def action_toggle_bookmark(self) -> None:
+        self.query_one(CustomLogList).toggle_bookmark()
+
+    def action_jump_next_bookmark(self) -> None:
+        self.query_one(CustomLogList).jump_next_bookmark()
+
+    def action_toggle_theme(self) -> None:
+        self.theme = "textual-light" if self.theme == "textual-dark" else "textual-dark"
+
+    def action_show_help(self) -> None:
+        from logview.ui.dialogs import HelpScreen
+        self.push_screen(HelpScreen())

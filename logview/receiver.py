@@ -2,7 +2,60 @@ import asyncio
 import sys
 from typing import Optional
 
+import os
+import io
+
 from logview.log_parser import LogParser
+
+
+class FileTailReceiver:
+    """Receives logs by tailing a file."""
+
+    def __init__(self, filepath: str, parser: LogParser, queue: asyncio.Queue):
+        self.filepath = filepath
+        self.parser = parser
+        self.queue = queue
+        self._running = False
+        self._task: Optional[asyncio.Task] = None
+
+    async def start(self):
+        """Starts the receiver."""
+        self._running = True
+        self._task = asyncio.create_task(self._tail_file())
+
+    async def stop(self):
+        """Stops the receiver."""
+        self._running = False
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+
+    async def _tail_file(self):
+        """Tails the file and pushes to queue."""
+        loop = asyncio.get_running_loop()
+
+        # Wait for file to exist
+        while self._running and not os.path.exists(self.filepath):
+            await asyncio.sleep(0.5)
+
+        if not self._running:
+            return
+
+        with open(self.filepath, 'r', encoding='utf-8', errors='replace') as f:
+            # Go to the end of the file
+            f.seek(0, io.SEEK_END)
+
+            while self._running:
+                line = await loop.run_in_executor(None, f.readline)
+                if not line:
+                    await asyncio.sleep(0.1)
+                    continue
+
+                entry = self.parser.parse(line)
+                await self.queue.put(entry)
 
 
 class TCPServerReceiver:
