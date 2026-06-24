@@ -6,6 +6,7 @@ FilterBar {
     height: 3;
     dock: top;
     background: $panel;
+    border: ascii $background 50%;
     padding: 0 1;
     align-vertical: middle;
 }
@@ -23,12 +24,24 @@ FilterBar Input {
     width: 1fr;
 }
 
+FilterBar Input.-error {
+    border: tall $error;
+}
+
 StatusBar {
     height: 1;
     dock: bottom;
     background: $accent;
     color: $text;
     padding: 0 1;
+}
+
+#status_label {
+    text-style: bold;
+}
+
+#stats_label {
+    color: $text-muted;
 }
 
 SearchBar {
@@ -53,12 +66,32 @@ SearchBar Input {
     min-width: 10;
 }
 
-RichLog {
+CustomLogList {
     height: 1fr;
     background: $surface;
 }
 
 /* We will handle highlighting via rich text in the app. */
+
+HelpScreen {
+    align: center middle;
+    background: $background 50%;
+}
+
+#help_dialog {
+    padding: 1 2;
+    width: 60;
+    height: auto;
+    border: thick $background 80%;
+    background: $surface;
+}
+
+#help_title {
+    text-align: center;
+    text-style: bold;
+    margin-bottom: 1;
+    width: 100%;
+}
 
 #save_dialog {
     padding: 1 2;
