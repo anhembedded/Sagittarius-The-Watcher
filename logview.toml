@@ -1,0 +1,9 @@
+[server]
+host = "localhost"
+port = 9999
+
+[display]
+max_lines = 10000
+
+[log_format]
+pattern = "^\\[(?P<timestamp>.*?)\\]\\s*\\[(?P<level>\\w+)\\]\\s*(?P<message>.*)"
