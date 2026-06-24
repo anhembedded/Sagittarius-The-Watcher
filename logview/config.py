@@ -101,6 +101,9 @@ def get_config() -> Dict[str, Any]:
         # Ensure we have a string.
         pass
 
+    if "colors" not in config:
+        config["colors"] = {}
+
     # Override with CLI args
     if args.host is not None:
         config["server"]["host"] = args.host

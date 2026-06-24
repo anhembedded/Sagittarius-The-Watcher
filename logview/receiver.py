@@ -5,7 +5,7 @@ from typing import Optional
 import os
 import io
 
-from logview.log_parser import LogParser
+from logview.log_parser import LogParser, MultiLineBuffer
 
 
 class FileTailReceiver:
@@ -34,8 +34,9 @@ class FileTailReceiver:
                 pass
 
     async def _tail_file(self):
-        """Tails the file and pushes to queue."""
+        """Tails the file and pushes to queue using MultiLineBuffer for multi-line support."""
         loop = asyncio.get_running_loop()
+        buf = MultiLineBuffer(self.parser)
 
         # Wait for file to exist
         while self._running and not os.path.exists(self.filepath):
@@ -54,14 +55,21 @@ class FileTailReceiver:
                     await asyncio.sleep(0.1)
                     continue
 
-                entry = self.parser.parse(line)
-                await self.queue.put(entry)
+                entry = buf.feed(line)
+                if entry:
+                    await self.queue.put(entry)
+
+        # Flush remaining
+        final = buf.flush()
+        if final:
+            await self.queue.put(final)
 
 
 class TCPServerReceiver:
     """Receives logs from a TCP socket or stdin and pushes parsed entries to a queue."""
 
-    def __init__(self, host: str, port: int, parser: LogParser, queue: asyncio.Queue, listen_stdin: bool = False):
+    def __init__(self, host: str, port: int, parser: LogParser, queue: asyncio.Queue,
+                 listen_stdin: bool = False):
         """Initializes the receiver.
 
         Args:
@@ -79,18 +87,20 @@ class TCPServerReceiver:
         self.server: Optional[asyncio.AbstractServer] = None
         self._running = False
 
+        # Callbacks for connection events (set by ReceiverWorker for status bar)
+        self.on_client_connected = None
+        self.on_client_disconnected = None
+
     async def start(self):
         """Starts the receiver."""
         self._running = True
         if self.listen_stdin:
             # Run stdin reader in a separate task or executor to not block
-            loop = asyncio.get_running_loop()
-            # Stdin might not be easily integrated with asyncio.StreamReader standard ways,
-            # so using a thread to read line by line.
             asyncio.create_task(self._read_stdin())
         else:
             self.server = await asyncio.start_server(
-                self.handle_client, self.host, self.port
+                self.handle_client, self.host, self.port,
+                reuse_address=True
             )
             # The server will run in the background
 
@@ -102,37 +112,59 @@ class TCPServerReceiver:
             await self.server.wait_closed()
 
     async def _read_stdin(self):
-        """Reads lines from stdin."""
+        """Reads lines from stdin using MultiLineBuffer."""
         loop = asyncio.get_running_loop()
+        buf = MultiLineBuffer(self.parser)
         while self._running:
             line = await loop.run_in_executor(None, sys.stdin.readline)
             if not line:
                 break
-            entry = self.parser.parse(line)
-            await self.queue.put(entry)
+            entry = buf.feed(line)
+            if entry:
+                await self.queue.put(entry)
+        final = buf.flush()
+        if final:
+            await self.queue.put(final)
 
     async def handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         """Handles an incoming client connection.
+
+        Each client connection gets its own MultiLineBuffer so stack traces are
+        correctly grouped regardless of connection interleaving.
 
         Args:
             reader (asyncio.StreamReader): The stream reader.
             writer (asyncio.StreamWriter): The stream writer.
         """
+        addr = writer.get_extra_info('peername', ('?', 0))
+        addr_str = f"{addr[0]}:{addr[1]}"
+        buf = MultiLineBuffer(self.parser)
+
+        if self.on_client_connected:
+            self.on_client_connected(addr_str)
+
         try:
             while self._running:
                 line_bytes = await reader.readline()
                 if not line_bytes:
                     break
-                # Try to decode, ignoring errors to keep going
                 line = line_bytes.decode('utf-8', errors='replace')
-                entry = self.parser.parse(line)
-                await self.queue.put(entry)
+                entry = buf.feed(line)
+                if entry:
+                    await self.queue.put(entry)
         except asyncio.CancelledError:
             pass
-        except Exception as e:
-            # Optionally log to stderr or a special queue
+        except Exception:
             pass
         finally:
+            # Flush any buffered multi-line entry before disconnecting
+            final = buf.flush()
+            if final:
+                await self.queue.put(final)
+
+            if self.on_client_disconnected:
+                self.on_client_disconnected(addr_str)
+
             writer.close()
             try:
                 await writer.wait_closed()

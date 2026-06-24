@@ -7,3 +7,23 @@ max_lines = 10000
 
 [log_format]
 pattern = "^\\[(?P<timestamp>.*?)\\]\\s*\\[(?P<level>\\w+)\\]\\s*(?P<message>.*)"
+
+[colors.DEBUG]
+bg = "#E8F4FD"
+fg = "#2C3E50"
+
+[colors.INFO]
+bg = ""
+fg = ""
+
+[colors.WARNING]
+bg = "#FFF9C4"
+fg = "#7D6608"
+
+[colors.ERROR]
+bg = "#FDECEA"
+fg = "#C0392B"
+
+[colors.CRITICAL]
+bg = "#F5B7B1"
+fg = "#7B241C"

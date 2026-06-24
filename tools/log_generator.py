@@ -89,8 +89,11 @@ async def main():
         print(f"Error during sending: {e}")
     finally:
         print(f"Finished. Total sent: {logs_sent}")
-        writer.close()
-        await writer.wait_closed()
+        try:
+            writer.close()
+            await writer.wait_closed()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     asyncio.run(main())

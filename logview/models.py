@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional
+from datetime import datetime
 
 import uuid
 
@@ -14,6 +15,7 @@ class LogEntry:
         message (str): The extracted message or the whole line if parsing failed.
         id (str): A unique identifier for the log entry, useful for bookmarking.
         is_new (bool): Indicates if the log is newly added, used for UI animation.
+        parsed_dt (Optional[datetime]): Datetime parsed from timestamp, used for sorting/relative time.
     """
     raw: str
     timestamp: Optional[str] = None
@@ -21,6 +23,7 @@ class LogEntry:
     message: str = ""
     id: str = ""
     is_new: bool = True
+    parsed_dt: Optional[datetime] = None
 
     def __post_init__(self):
         if not self.id:
