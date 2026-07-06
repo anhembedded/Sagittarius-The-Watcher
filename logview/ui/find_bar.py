@@ -28,6 +28,7 @@ class FindBar(QWidget):
 
         self._input = QLineEdit()
         self._input.setPlaceholderText("Search in logs…")
+        self._input.setClearButtonEnabled(True)
         self._input.setFixedWidth(240)
         self._input.textChanged.connect(self.term_changed)
         self._input.returnPressed.connect(lambda: self.navigate.emit(1))
