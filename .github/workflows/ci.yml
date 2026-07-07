@@ -8,7 +8,11 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ['3.12']
 
     steps:
     - name: Checkout code
@@ -17,12 +21,13 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.12'
+        python-version: ${{ matrix.python-version }}
 
-    - name: Install system dependencies for Qt/PySide6
+    - name: Install system dependencies for Qt (Linux)
+      if: runner.os == 'Linux'
       run: |
         sudo apt-get update
-        sudo apt-get install -y xvfb libegl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcb-xfixes0
+        sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcb-xfixes0
 
     - name: Install Python dependencies
       run: |
@@ -34,7 +39,8 @@ jobs:
         # Check for syntax errors by compiling python files (excludes style checks)
         python -m compileall -q logview/ tests/
 
-    - name: Run Tests (Verbose)
+    - name: Run Tests (Verbose Headless)
+      env:
+        QT_QPA_PLATFORM: offscreen
       run: |
-        # Run tests using virtual framebuffer for Qt headless UI testing
-        PYTHONPATH=. xvfb-run pytest -v
+        python -m pytest -v
