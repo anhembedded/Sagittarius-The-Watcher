@@ -9,23 +9,23 @@ max_lines = 10000
 pattern = "^\\[(?P<timestamp>.*?)\\]\\s*\\[(?P<level>\\w+)\\]\\s*(?P<message>.*)"
 
 [colors.DEBUG]
-bg = "#ed333b"
-fg = "#33d17a"
+bg = "#5e5c64"
+fg = "#ffffff"
 
 [colors.INFO]
-bg = "#33d17a"
+bg = "#26a269"
 fg = ""
 
 [colors.WARNING]
-bg = "#e66100"
+bg = "#ff7800"
 fg = ""
 
 [colors.ERROR]
-bg = ""
+bg = "#f66151"
 fg = ""
 
 [colors.CRITICAL]
-bg = ""
+bg = "#a51d2d"
 fg = ""
 
 [theme]
