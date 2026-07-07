@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QPainter, QColor, QTextCharFormat, QTextCursor, QTextDocument
 from PySide6.QtCore import Qt, QModelIndex, QRectF
+import re
 
 
 class LogDelegate(QStyledItemDelegate):
@@ -14,10 +15,12 @@ class LogDelegate(QStyledItemDelegate):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._term: str = ""
+        self._use_regex: bool = False
 
-    def set_term(self, term: str):
+    def set_term(self, term: str, use_regex: bool = False):
         """Set the search term to highlight. Empty string disables highlighting."""
         self._term = term
+        self._use_regex = use_regex
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex):
         bg_brush = index.data(Qt.ItemDataRole.BackgroundRole)
@@ -65,13 +68,24 @@ class LogDelegate(QStyledItemDelegate):
             highlight_fmt.setBackground(QColor("#FFFF00"))
             highlight_fmt.setForeground(QColor("#000000"))
 
-            cursor = QTextCursor(doc)
-            find_flags = QTextDocument.FindFlag(0)
-            while True:
-                cursor = doc.find(self._term, cursor, find_flags)
-                if cursor.isNull():
-                    break
-                cursor.mergeCharFormat(highlight_fmt)
+            if self._use_regex:
+                try:
+                    pattern = re.compile(self._term, re.IGNORECASE)
+                    for match in pattern.finditer(text):
+                        cursor = QTextCursor(doc)
+                        cursor.setPosition(match.start())
+                        cursor.setPosition(match.end(), QTextCursor.MoveMode.KeepAnchor)
+                        cursor.mergeCharFormat(highlight_fmt)
+                except re.error:
+                    pass
+            else:
+                cursor = QTextCursor(doc)
+                find_flags = QTextDocument.FindFlag(0)
+                while True:
+                    cursor = doc.find(self._term, cursor, find_flags)
+                    if cursor.isNull():
+                        break
+                    cursor.mergeCharFormat(highlight_fmt)
 
             painter.translate(text_rect.topLeft())
             doc.setTextWidth(text_rect.width())

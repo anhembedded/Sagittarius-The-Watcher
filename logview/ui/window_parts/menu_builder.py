@@ -18,6 +18,13 @@ class MenuBuilder:
 
         file_menu = menu_bar.addMenu("File")
 
+        act_new_tab = QAction("New Source Tab…", self.main_window)
+        act_new_tab.setShortcut(QKeySequence("Ctrl+T"))
+        act_new_tab.triggered.connect(self.main_window._on_new_source_tab)
+        file_menu.addAction(act_new_tab)
+
+        file_menu.addSeparator()
+
         act_save = QAction("Save Session…", self.main_window)
         act_save.setShortcut(QKeySequence("Ctrl+S"))
         act_save.triggered.connect(self.main_window.save_session)
