@@ -40,7 +40,7 @@ def test_pause_resume(qtbot, app_config, monkeypatch):
     window = MainWindow(app_config)
     qtbot.addWidget(window)
 
-    window.action_pause.setChecked(True)
+    window.toolbar_builder.action_pause.setChecked(True)
     assert window.is_paused is True
 
     log = LogEntry(raw="[2023] [INFO] Msg")
@@ -51,7 +51,7 @@ def test_pause_resume(qtbot, app_config, monkeypatch):
     assert len(window.pending_logs) == 1
 
     # Resume
-    window.action_pause.setChecked(False)
+    window.toolbar_builder.action_pause.setChecked(False)
     assert window.is_paused is False
     assert window.model.rowCount() == 1
     assert len(window.pending_logs) == 0

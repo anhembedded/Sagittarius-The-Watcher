@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QTimer, Signal
 from PySide6.QtGui import QColor, QBrush
 
 from logview.models import LogEntry
+from logview.controllers.filter_engine import LogFilterEngine
 
 # Constants for column indices
 COL_BOOKMARK = 0
@@ -65,11 +66,7 @@ class LogModel(QAbstractTableModel):
         self._bookmarks: set[str] = set()
 
         # --- Filtering state ---
-        self._filter_text = ""
-        self._filter_level = "ALL"
-        self._filter_regex = False
-        self._filter_from_dt: Optional[datetime] = None   # Feature 7
-        self._filter_to_dt: Optional[datetime] = None     # Feature 7
+        self._filter_engine = LogFilterEngine()
 
         # --- Sorting state (Feature 8) ---
         self._sort_column: int = -1
@@ -255,7 +252,7 @@ class LogModel(QAbstractTableModel):
             if log.is_new:
                 self._new_row_fades[log.id] = 100
 
-            if self._matches_filter(log):
+            if self._filter_engine.matches(log):
                 new_filtered.append(log)
 
         if new_filtered:
@@ -295,20 +292,18 @@ class LogModel(QAbstractTableModel):
 
     def set_filter(self, text: str, level: str, use_regex: bool):
         """Updates the text/level filter and re-evaluates all logs."""
-        self._filter_text = text
-        self._filter_level = level
-        self._filter_regex = use_regex
+        self._filter_engine.set_text_filter(text, use_regex)
+        self._filter_engine.set_level_filter(level)
         self._apply_filter()
 
     def set_time_range(self, from_dt: Optional[datetime], to_dt: Optional[datetime]):
         """Feature 7: Set a datetime range filter."""
-        self._filter_from_dt = from_dt
-        self._filter_to_dt = to_dt
+        self._filter_engine.set_time_range(from_dt, to_dt)
         self._apply_filter()
 
     def _apply_filter(self):
         self.beginResetModel()
-        self._filtered_logs = [log for log in self._all_logs if self._matches_filter(log)]
+        self._filtered_logs = [log for log in self._all_logs if self._filter_engine.matches(log)]
         self._find_match_rows.clear()
         self._find_current_idx = -1
         self.endResetModel()
@@ -318,37 +313,6 @@ class LogModel(QAbstractTableModel):
 
         if self._highlight_term:
             self._rebuild_find_matches()
-
-    def _matches_filter(self, log: LogEntry) -> bool:
-        # Level filter
-        if self._filter_level != "ALL" and log.level:
-            if log.level.upper() != self._filter_level:
-                return False
-
-        # Time range filter (Feature 7)
-        if self._filter_from_dt or self._filter_to_dt:
-            if log.parsed_dt is None:
-                return False  # Can't filter entries without parsed datetime
-            dt = log.parsed_dt.replace(tzinfo=None) if log.parsed_dt.tzinfo else log.parsed_dt
-            if self._filter_from_dt and dt < self._filter_from_dt:
-                return False
-            if self._filter_to_dt and dt > self._filter_to_dt:
-                return False
-
-        # Text filter
-        if self._filter_text:
-            text_to_search = log.raw
-            if self._filter_regex:
-                try:
-                    if not re.search(self._filter_text, text_to_search):
-                        return False
-                except re.error:
-                    return False
-            else:
-                if self._filter_text.lower() not in text_to_search.lower():
-                    return False
-
-        return True
 
     # ------------------------------------------------------------------
     # Feature 3: Find / highlight
