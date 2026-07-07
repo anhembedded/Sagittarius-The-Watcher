@@ -5,11 +5,10 @@ from PySide6.QtGui import QPainter, QColor, QTextCharFormat, QTextCursor, QTextD
 from PySide6.QtCore import Qt, QModelIndex, QRectF
 
 
-class HighlightDelegate(QStyledItemDelegate):
-    """Item delegate that draws a yellow highlight behind text matching a search term.
-
-    Works for any column that displays plain text. When no term is set, it
-    falls back to the default painting so performance is unaffected.
+class LogDelegate(QStyledItemDelegate):
+    """Custom delegate for the log table view.
+    Ensures model-configured level background/foreground colors override stylesheet themes,
+    and supports search term highlighting in the message column.
     """
 
     def __init__(self, parent=None):
@@ -21,55 +20,76 @@ class HighlightDelegate(QStyledItemDelegate):
         self._term = term
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex):
-        if not self._term:
-            super().paint(painter, option, index)
-            return
+        bg_brush = index.data(Qt.ItemDataRole.BackgroundRole)
+        fg_brush = index.data(Qt.ItemDataRole.ForegroundRole)
 
-        self.initStyleOption(option, index)
-        text = option.text
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
 
-        painter.save()
+        # 1. Override Background Color (even with stylesheets active)
+        if bg_brush:
+            opt.backgroundBrush = bg_brush
+            if not (opt.state & QStyle.StateFlag.State_Selected):
+                painter.save()
+                painter.fillRect(opt.rect, bg_brush)
+                painter.restore()
+                # Clear alternate feature to prevent Qt from drawing stylesheet alternate bg over it
+                opt.features &= ~QStyleOptionViewItem.ViewItemFeature.Alternate
 
-        # Draw selection / hover background using the platform style
-        style = option.widget.style() if option.widget else QApplication.style()
-        option.text = ""
-        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, option, painter, option.widget)
+        # 2. Override Foreground Color
+        if fg_brush:
+            opt.palette.setBrush(opt.palette.ColorGroup.Active, opt.palette.ColorRole.Text, fg_brush)
+            opt.palette.setBrush(opt.palette.ColorGroup.Inactive, opt.palette.ColorRole.Text, fg_brush)
 
-        # Compute the text rect
-        text_rect = style.subElementRect(
-            QStyle.SubElement.SE_ItemViewItemText, option, option.widget
-        )
-        painter.setClipRect(text_rect)
+        # 3. Rich search term highlighting for the message column (column 3)
+        if index.column() == 3 and self._term:
+            painter.save()
+            text = opt.text
 
-        # Build a QTextDocument for rich highlighting
-        doc = QTextDocument()
-        doc.setDocumentMargin(0)
-        doc.setDefaultFont(option.font)
-        doc.setPlainText(text)
+            # Draw selection/hover state if needed
+            style = opt.widget.style() if opt.widget else QApplication.style()
+            opt.text = ""
+            style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, opt.widget)
 
-        # Apply yellow highlight to every match (case-insensitive)
-        highlight_fmt = QTextCharFormat()
-        highlight_fmt.setBackground(QColor("#FFFF00"))
-        highlight_fmt.setForeground(QColor("#000000"))
-
-        cursor = QTextCursor(doc)
-        find_flags = QTextDocument.FindFlag(0)  # case-insensitive by default
-        while True:
-            cursor = doc.find(self._term, cursor, find_flags)
-            if cursor.isNull():
-                break
-            cursor.mergeCharFormat(highlight_fmt)
-
-        # Translate and render
-        painter.translate(text_rect.topLeft())
-        doc.setTextWidth(text_rect.width())
-        ctx = doc.documentLayout().PaintContext()
-        # Use the foreground color from the view item if selected
-        if option.state & QStyle.StateFlag.State_Selected:
-            ctx.palette.setColor(
-                ctx.palette.ColorRole.Text,
-                option.palette.color(option.palette.ColorGroup.Active,
-                                     option.palette.ColorRole.HighlightedText)
+            text_rect = style.subElementRect(
+                QStyle.SubElement.SE_ItemViewItemText, opt, opt.widget
             )
-        doc.documentLayout().draw(painter, ctx)
-        painter.restore()
+            painter.setClipRect(text_rect)
+
+            doc = QTextDocument()
+            doc.setDocumentMargin(0)
+            doc.setDefaultFont(opt.font)
+            doc.setPlainText(text)
+
+            highlight_fmt = QTextCharFormat()
+            highlight_fmt.setBackground(QColor("#FFFF00"))
+            highlight_fmt.setForeground(QColor("#000000"))
+
+            cursor = QTextCursor(doc)
+            find_flags = QTextDocument.FindFlag(0)
+            while True:
+                cursor = doc.find(self._term, cursor, find_flags)
+                if cursor.isNull():
+                    break
+                cursor.mergeCharFormat(highlight_fmt)
+
+            painter.translate(text_rect.topLeft())
+            doc.setTextWidth(text_rect.width())
+            ctx = doc.documentLayout().PaintContext()
+
+            # Keep selected text color if row is selected and not matched by term
+            if opt.state & QStyle.StateFlag.State_Selected:
+                ctx.palette.setColor(
+                    ctx.palette.ColorRole.Text,
+                    opt.palette.color(opt.palette.ColorGroup.Active,
+                                      opt.palette.ColorRole.HighlightedText)
+                )
+            else:
+                if fg_brush:
+                    ctx.palette.setBrush(ctx.palette.ColorRole.Text, fg_brush)
+
+            doc.documentLayout().draw(painter, ctx)
+            painter.restore()
+        else:
+            style = opt.widget.style() if opt.widget else QApplication.style()
+            style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, opt.widget)

@@ -104,6 +104,9 @@ def get_config() -> Dict[str, Any]:
     if "colors" not in config:
         config["colors"] = {}
 
+    if "theme" not in config:
+        config["theme"] = {"name": "auto"}
+
     # Override with CLI args
     if args.host is not None:
         config["server"]["host"] = args.host

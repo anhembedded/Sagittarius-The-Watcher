@@ -9,21 +9,24 @@ max_lines = 10000
 pattern = "^\\[(?P<timestamp>.*?)\\]\\s*\\[(?P<level>\\w+)\\]\\s*(?P<message>.*)"
 
 [colors.DEBUG]
-bg = "#E8F4FD"
-fg = "#2C3E50"
+bg = "#ed333b"
+fg = "#33d17a"
 
 [colors.INFO]
-bg = ""
+bg = "#33d17a"
 fg = ""
 
 [colors.WARNING]
-bg = "#FFF9C4"
-fg = "#7D6608"
+bg = "#e66100"
+fg = ""
 
 [colors.ERROR]
-bg = "#FDECEA"
-fg = "#C0392B"
+bg = ""
+fg = ""
 
 [colors.CRITICAL]
-bg = "#F5B7B1"
-fg = "#7B241C"
+bg = ""
+fg = ""
+
+[theme]
+name = "dark_pink.xml"

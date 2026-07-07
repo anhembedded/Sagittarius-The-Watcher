@@ -247,5 +247,10 @@ def save_config_to_toml(config: Dict[str, Any], path: str):
         lines.append(f'fg = "{level_colors.get("fg", "")}"')
         lines.append("")
 
+    theme = config.get("theme", {})
+    lines.append("[theme]")
+    lines.append(f'name = "{theme.get("name", "auto")}"')
+    lines.append("")
+
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))

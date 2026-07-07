@@ -4,13 +4,13 @@ from typing import Dict, Any, List, Optional
 from PySide6.QtWidgets import (
     QMainWindow, QTableView, QVBoxLayout, QWidget, QToolBar, QStyle,
     QHeaderView, QFileDialog, QMessageBox, QSplitter, QTextEdit, QLabel,
-    QStatusBar, QMenuBar, QApplication, QMenu, QDockWidget,
+    QStatusBar, QMenuBar, QApplication, QMenu, QToolButton, QDockWidget,
 )
 from PySide6.QtCore import Qt, QThread, Signal, Slot, QTimer, QEvent
-from PySide6.QtGui import QFont, QKeySequence, QShortcut, QClipboard, QAction, QColor
+from PySide6.QtGui import QFont, QKeySequence, QShortcut, QClipboard, QAction, QColor, QGuiApplication, QActionGroup
 
 from logview.ui.log_model import LogModel
-from logview.ui.log_delegate import HighlightDelegate
+from logview.ui.log_delegate import LogDelegate
 from logview.ui.find_bar import FindBar
 from logview.ui.components import FilterPanel, TimeRangeWidget
 from logview.ui.settings_dialog import SettingsDialog, save_config_to_toml
@@ -50,8 +50,9 @@ class MainWindow(QMainWindow):
         self._setup_ui()
         self._setup_status_bar()
 
-        self.is_dark_theme = False
+        self.is_dark_theme = QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark
         self._apply_theme()
+        QGuiApplication.styleHints().colorSchemeChanged.connect(self._on_color_scheme_changed)
 
         # Start Receiver
         self.receiver_thread = ReceiverWorker(self.config, self.parser)
@@ -118,6 +119,54 @@ class MainWindow(QMainWindow):
         act_export.triggered.connect(self.export_logs)
         file_menu.addAction(act_export)
 
+        # Theme Menu
+        self.theme_menu = menu_bar.addMenu("Theme")
+        self.theme_group = QActionGroup(self)
+        self.theme_group.setExclusive(True)
+
+        current_theme = self.config.get("theme", {}).get("name", "auto")
+
+        def add_theme_action(name, display_name, parent_menu):
+            act = QAction(display_name, self)
+            act.setCheckable(True)
+            if name == current_theme:
+                act.setChecked(True)
+            # Use default parameter value to capture current 'name' value inside lambda
+            act.triggered.connect(lambda checked=False, n=name: self.change_theme(n))
+            self.theme_group.addAction(act)
+            parent_menu.addAction(act)
+            return act
+
+        add_theme_action("auto", "System Default (Auto)", self.theme_menu)
+        add_theme_action("dark", "PyQtDarkTheme (Dark)", self.theme_menu)
+        add_theme_action("light", "PyQtDarkTheme (Light)", self.theme_menu)
+
+        self.theme_menu.addSeparator()
+
+        try:
+            from qt_material import list_themes
+            all_material = list_themes()
+        except ImportError:
+            all_material = []
+
+        if all_material:
+            dark_menu = self.theme_menu.addMenu("Material Dark Themes")
+            light_menu = self.theme_menu.addMenu("Material Light Themes")
+
+            for t in all_material:
+                clean_name = t.replace(".xml", "").replace("_", " ").title()
+                if t.startswith("dark_"):
+                    add_theme_action(t, clean_name, dark_menu)
+                else:
+                    add_theme_action(t, clean_name, light_menu)
+
+    def change_theme(self, name: str):
+        if "theme" not in self.config:
+            self.config["theme"] = {}
+        self.config["theme"]["name"] = name
+        save_config_to_toml(self.config, DEFAULT_CONFIG_PATH)
+        self._apply_theme()
+
     # ------------------------------------------------------------------
     # Theme
     # ------------------------------------------------------------------
@@ -125,56 +174,40 @@ class MainWindow(QMainWindow):
     def _setup_style(self):
         pass
 
-    def toggle_theme(self):
-        self.is_dark_theme = not self.is_dark_theme
+    @Slot(Qt.ColorScheme)
+    def _on_color_scheme_changed(self, scheme: Qt.ColorScheme):
+        self.is_dark_theme = scheme == Qt.ColorScheme.Dark
         self._apply_theme()
 
     def _apply_theme(self):
-        if self.is_dark_theme:
-            qss = """
-            QMainWindow, QWidget { background-color: #2b2b2b; color: #a9b7c6; }
-            QTableView {
-                background-color: #313335;
-                alternate-background-color: #2b2b2b;
-                selection-background-color: #214283;
-                selection-color: #ffffff;
-                border: 1px solid #555555;
-            }
-            QHeaderView::section {
-                background-color: #3c3f41;
-                padding: 4px;
-                border: 1px solid #555555;
-                font-weight: bold;
-            }
-            QToolBar { background-color: #3c3f41; border-bottom: 1px solid #555555; }
-            QLineEdit, QComboBox { background-color: #45494a; color: #a9b7c6; border: 1px solid #646464; }
-            QTextEdit { background-color: #2b2b2b; color: #a9b7c6; border: 1px solid #555555; }
-            QStatusBar { background-color: #3c3f41; border-top: 1px solid #555555; }
-            QMenuBar { background-color: #3c3f41; }
-            QMenuBar::item:selected { background-color: #214283; }
-            QMenu { background-color: #3c3f41; border: 1px solid #555555; }
-            QMenu::item:selected { background-color: #214283; }
-            """
+        theme_name = self.config.get("theme", {}).get("name", "auto")
+        app = QApplication.instance()
+        if not app:
+            return
+
+        import qdarktheme
+
+        app.setStyleSheet("")
+        self.setStyleSheet("")
+
+        if theme_name in ("auto", "dark", "light"):
+            if theme_name == "auto":
+                theme_str = "dark" if self.is_dark_theme else "light"
+            else:
+                theme_str = theme_name
+
+            app.setStyleSheet(qdarktheme.load_stylesheet(theme_str))
+            app.setPalette(qdarktheme.load_palette(theme_str))
         else:
-            qss = """
-            QMainWindow { background-color: #f0f0f0; color: #000000; }
-            QTableView {
-                background-color: #ffffff;
-                alternate-background-color: #f9f9f9;
-                selection-background-color: #a8d8ff;
-                selection-color: #000000;
-                border: 1px solid #ccc;
-            }
-            QHeaderView::section {
-                background-color: #e0e0e0;
-                padding: 4px;
-                border: 1px solid #ccc;
-                font-weight: bold;
-            }
-            QToolBar { background-color: #e0e0e0; border-bottom: 1px solid #ccc; }
-            QTextEdit { background-color: #fafafa; border: 1px solid #ccc; }
-            """
-        self.setStyleSheet(qss)
+            try:
+                from qt_material import apply_stylesheet
+                apply_stylesheet(app, theme=theme_name)
+            except Exception as e:
+                # Fallback to auto if qt-material fails
+                print(f"Error applying qt-material theme {theme_name}: {e}")
+                theme_str = "dark" if self.is_dark_theme else "light"
+                app.setStyleSheet(qdarktheme.load_stylesheet(theme_str))
+                app.setPalette(qdarktheme.load_palette(theme_str))
 
     # ------------------------------------------------------------------
     # UI setup
@@ -202,6 +235,12 @@ class MainWindow(QMainWindow):
         )
         self.action_clear.triggered.connect(self.clear_logs)
 
+        self.action_copy = self.toolbar.addAction(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon), "Copy"
+        )
+        self.action_copy.setToolTip("Copy Selected Logs (Ctrl+C)")
+        self.action_copy.triggered.connect(self._copy_selected_rows)
+
         self.toolbar.addSeparator()
 
         # Feature 14: Relative timestamp toggle
@@ -216,9 +255,12 @@ class MainWindow(QMainWindow):
         self.toolbar.addSeparator()
 
         self.action_theme = self.toolbar.addAction(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_DesktopIcon), "Toggle Theme"
+            self.style().standardIcon(QStyle.StandardPixmap.SP_DesktopIcon), "Theme"
         )
-        self.action_theme.triggered.connect(self.toggle_theme)
+        theme_btn = self.toolbar.widgetForAction(self.action_theme)
+        if isinstance(theme_btn, QToolButton):
+            theme_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+            theme_btn.setMenu(self.theme_menu)
 
         self.action_settings = self.toolbar.addAction(
             self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView), "Settings"
@@ -255,10 +297,12 @@ class MainWindow(QMainWindow):
         self.table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self.table_view.setSortingEnabled(True)     # Feature 8
         self.table_view.horizontalHeader().sectionClicked.connect(self._on_header_clicked)
+        self.table_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table_view.customContextMenuRequested.connect(self._show_context_menu)
 
-        # Feature 3: Highlight delegate
-        self._delegate = HighlightDelegate(self.table_view)
-        self.table_view.setItemDelegateForColumn(3, self._delegate)  # Message column
+        # Setup log delegate for the entire table view to handle custom row colors overriding themes
+        self._delegate = LogDelegate(self.table_view)
+        self.table_view.setItemDelegate(self._delegate)
 
         # Column widths
         self.table_view.setColumnWidth(0, 30)   # Bookmark
@@ -389,7 +433,31 @@ class MainWindow(QMainWindow):
         row = current.row()
         entry = self.model.get_entry_at_row(row)
         if entry:
-            self._detail_panel.setPlainText(entry.raw)
+            if not entry.level and not entry.timestamp:
+                self._detail_panel.setPlainText(entry.raw)
+                return
+
+            # Pretty-print raw JSON if applicable
+            pretty_raw = entry.raw
+            if entry.raw.strip().startswith("{"):
+                try:
+                    import json
+                    parsed_json = json.loads(entry.raw)
+                    pretty_raw = json.dumps(parsed_json, indent=4)
+                except Exception:
+                    pass
+
+            details = []
+            if entry.timestamp:
+                details.append(f"Timestamp: {entry.timestamp}")
+            if entry.level:
+                details.append(f"Level:     {entry.level}")
+            if entry.message:
+                indented_msg = entry.message.replace("\n", "\n           ")
+                details.append(f"Message:   {indented_msg}")
+
+            details.append("\n" + "-" * 60 + "\nRaw Log:\n" + pretty_raw)
+            self._detail_panel.setPlainText("\n".join(details))
         else:
             self._detail_panel.clear()
 
@@ -489,6 +557,34 @@ class MainWindow(QMainWindow):
         if lines:
             QApplication.clipboard().setText("\n".join(lines))
             self.statusBar().showMessage(f"Copied {len(lines)} row(s) to clipboard", 2000)
+
+    def _show_context_menu(self, pos):
+        menu = QMenu(self)
+        
+        action_copy_raw = QAction("Copy Selected Logs", self)
+        action_copy_raw.setShortcut(QKeySequence("Ctrl+C"))
+        action_copy_raw.triggered.connect(self._copy_selected_rows)
+        menu.addAction(action_copy_raw)
+        
+        action_copy_msg = QAction("Copy Message Only", self)
+        action_copy_msg.triggered.connect(self._copy_selected_messages)
+        menu.addAction(action_copy_msg)
+        
+        menu.exec(self.table_view.viewport().mapToGlobal(pos))
+
+    def _copy_selected_messages(self):
+        selected = self.table_view.selectedIndexes()
+        if not selected:
+            return
+        rows = sorted(set(idx.row() for idx in selected))
+        lines = []
+        for row in rows:
+            entry = self.model.get_entry_at_row(row)
+            if entry:
+                lines.append(entry.message)
+        if lines:
+            QApplication.clipboard().setText("\n".join(lines))
+            self.statusBar().showMessage(f"Copied {len(lines)} message(s) to clipboard", 2000)
 
     # ------------------------------------------------------------------
     # Feature 9: Font size (Ctrl + Scroll)

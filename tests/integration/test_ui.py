@@ -74,3 +74,21 @@ def test_filtering(qtbot, app_config, monkeypatch):
     window.filter_panel.level_combo.setCurrentText("ERROR")
     assert window.model.rowCount() == 1
     assert window.model.data(window.model.index(0, 2)) == "ERROR"
+
+def test_copy_selected_rows(qtbot, app_config, monkeypatch):
+    monkeypatch.setattr("logview.ui.main_window.ReceiverWorker.start", lambda self: None)
+
+    window = MainWindow(app_config)
+    qtbot.addWidget(window)
+
+    log = LogEntry(raw="[2023] [INFO] Msg", timestamp="2023", level="INFO", message="Msg")
+    window.on_logs_received([log])
+
+    window.table_view.selectAll()
+    window._copy_selected_rows()
+
+    from PySide6.QtWidgets import QApplication
+    assert QApplication.clipboard().text() == "[2023] [INFO] Msg"
+
+    window._copy_selected_messages()
+    assert QApplication.clipboard().text() == "Msg"

@@ -2,6 +2,9 @@
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $VenvActivate = Join-Path $ScriptDir ".venv\Scripts\Activate.ps1"
+if (-not (Test-Path $VenvActivate)) {
+    $VenvActivate = Join-Path $ScriptDir ".venv\bin\Activate.ps1"
+}
 
 if (-not (Test-Path $VenvActivate)) {
     Write-Error "Virtual environment not found at: $VenvActivate"
