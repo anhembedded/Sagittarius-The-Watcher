@@ -26,7 +26,9 @@ class LogFilterEngine:
 
     def matches(self, log: LogEntry) -> bool:
         # Level filter
-        if self._filter_level != "ALL" and log.level:
+        if self._filter_level != "ALL":
+            if log.level is None:
+                return False
             if log.level.upper() != self._filter_level:
                 return False
 

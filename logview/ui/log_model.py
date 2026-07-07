@@ -50,9 +50,10 @@ class LogModel(QAbstractTableModel):
     # Emitted whenever level counts change (add / clear)
     counts_changed = Signal(dict)  # Feature 6
 
-    def __init__(self, parent=None, color_config: Dict = None):
+    def __init__(self, parent=None, max_lines: int = 10000, color_config: Dict = None):
         super().__init__(parent)
         self._all_logs: List[LogEntry] = []
+        self._max_lines = max_lines
 
         # Build level -> (bg QColor | None, fg QColor | None) lookup
         self._level_colors: Dict[str, tuple] = {}
@@ -63,7 +64,7 @@ class LogModel(QAbstractTableModel):
                 self._level_colors[level.upper()] = (bg, fg)
         self._filtered_logs: List[LogEntry] = []
 
-        self._bookmarks: set[str] = set()
+        self._bookmarks: set[int] = set()
 
         # --- Filtering state ---
         self._filter_engine = LogFilterEngine()
@@ -272,6 +273,47 @@ class LogModel(QAbstractTableModel):
                 self._filtered_logs.extend(new_filtered)
                 self.endInsertRows()
 
+        # Enforce max_lines bounded memory limit
+        overflow = len(self._all_logs) - self._max_lines
+        if overflow > 0:
+            removed_logs = self._all_logs[:overflow]
+            self._all_logs = self._all_logs[overflow:]
+
+            # Remove specific counts for old logs
+            for log in removed_logs:
+                if log.level:
+                    lvl = log.level.upper()
+                    if lvl in self._level_counts:
+                        self._level_counts[lvl] = max(0, self._level_counts[lvl] - 1)
+                        if self._level_counts[lvl] == 0:
+                            del self._level_counts[lvl]
+
+            removed_ids = {log.id for log in removed_logs}
+
+            # Also clear from dictionaries
+            self._bookmarks.difference_update(removed_ids)
+            for rid in removed_ids:
+                self._new_row_fades.pop(rid, None)
+
+            # Check if any filtered logs are affected
+            filtered_overflow = sum(1 for log in self._filtered_logs if log.id in removed_ids)
+
+            if filtered_overflow > 0:
+                # Since the items might be scattered due to sorting or not at the exact top,
+                # if sorted, we must use beginResetModel.
+                if self._sort_column >= 0:
+                    self.beginResetModel()
+                    self._filtered_logs = [log for log in self._filtered_logs if log.id not in removed_ids]
+                    self.endResetModel()
+                else:
+                    # If not sorted, the oldest filtered logs are exactly at the top.
+                    self.beginRemoveRows(QModelIndex(), 0, filtered_overflow - 1)
+                    self._filtered_logs = self._filtered_logs[filtered_overflow:]
+                    self.endRemoveRows()
+
+                if self._highlight_term:
+                    self._rebuild_find_matches()
+
         self.counts_changed.emit(dict(self._level_counts))
 
     def get_level_counts(self) -> dict:
@@ -443,11 +485,17 @@ class LogModel(QAbstractTableModel):
                 del self._new_row_fades[k]
 
             if len(self._filtered_logs) > 0:
-                self.dataChanged.emit(
-                    self.index(0, 0),
-                    self.index(len(self._filtered_logs) - 1, self.columnCount() - 1),
-                    [Qt.ItemDataRole.BackgroundRole]
-                )
+                active_ids = set(self._new_row_fades.keys())
+                rows_to_update = [i for i, log in enumerate(self._filtered_logs) if log.id in active_ids]
+
+                if rows_to_update:
+                    min_row = rows_to_update[0]
+                    max_row = rows_to_update[-1]
+                    self.dataChanged.emit(
+                        self.index(min_row, 0),
+                        self.index(max_row, self.columnCount() - 1),
+                        [Qt.ItemDataRole.BackgroundRole]
+                    )
 
     # ------------------------------------------------------------------
     # Helpers

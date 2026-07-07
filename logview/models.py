@@ -1,8 +1,7 @@
-from dataclasses import dataclass
+import itertools
+from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
-
-import uuid
 
 @dataclass
 class LogEntry:
@@ -13,7 +12,7 @@ class LogEntry:
         timestamp (Optional[str]): The extracted timestamp, if any.
         level (Optional[str]): The extracted log level, if any.
         message (str): The extracted message or the whole line if parsing failed.
-        id (str): A unique identifier for the log entry, useful for bookmarking.
+        id (int): A unique identifier for the log entry, useful for bookmarking.
         is_new (bool): Indicates if the log is newly added, used for UI animation.
         parsed_dt (Optional[datetime]): Datetime parsed from timestamp, used for sorting/relative time.
     """
@@ -21,13 +20,15 @@ class LogEntry:
     timestamp: Optional[str] = None
     level: Optional[str] = None
     message: str = ""
-    id: str = ""
+    id: int = 0
     is_new: bool = True
     parsed_dt: Optional[datetime] = None
 
+    _id_counter = itertools.count(1)
+
     def __post_init__(self):
-        if not self.id:
-            self.id = uuid.uuid4().hex
+        if self.id == 0:
+            self.id = next(self._id_counter)
         self._raw_lower: Optional[str] = None
 
     @property
