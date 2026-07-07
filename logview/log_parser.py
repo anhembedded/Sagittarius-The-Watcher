@@ -70,17 +70,6 @@ class LogParser:
         clean_line = line.rstrip('\r\n')
         match = self.pattern.match(clean_line)
 
-        if match:
-            group_dict = match.groupdict()
-            ts_str = group_dict.get("timestamp")
-            return LogEntry(
-                raw=clean_line,
-                timestamp=ts_str,
-                level=group_dict.get("level", "").upper() if group_dict.get("level") else None,
-                message=group_dict.get("message", clean_line),
-                parsed_dt=_try_parse_datetime(ts_str),
-            )
-
         # JSON fallback (Feature 13 lite: parse common JSON log formats)
         if clean_line.startswith("{"):
             try:
@@ -89,17 +78,36 @@ class LogParser:
                           or data.get("ts") or data.get("datetime"))
                 level_raw = (data.get("level") or data.get("lvl")
                              or data.get("severity") or data.get("levelname"))
+                module_raw = (data.get("module") or data.get("mod"))
+                submodule_raw = (data.get("submodule") or data.get("submod"))
                 msg = (data.get("message") or data.get("msg")
                        or data.get("text") or clean_line)
                 return LogEntry(
                     raw=clean_line,
                     timestamp=str(ts_str) if ts_str else None,
                     level=str(level_raw).upper() if level_raw else None,
+                    module=str(module_raw) if module_raw else None,
+                    submodule=str(submodule_raw) if submodule_raw else None,
                     message=str(msg),
                     parsed_dt=_try_parse_datetime(str(ts_str) if ts_str else None),
                 )
             except (json.JSONDecodeError, AttributeError):
                 pass
+
+        match = self.pattern.match(clean_line)
+
+        if match:
+            group_dict = match.groupdict()
+            ts_str = group_dict.get("timestamp")
+            return LogEntry(
+                raw=clean_line,
+                timestamp=ts_str,
+                level=group_dict.get("level", "").upper() if group_dict.get("level") else None,
+                module=group_dict.get("module"),
+                submodule=group_dict.get("submodule"),
+                message=group_dict.get("message", clean_line),
+                parsed_dt=_try_parse_datetime(ts_str),
+            )
 
         return LogEntry(raw=clean_line, message=clean_line)
 

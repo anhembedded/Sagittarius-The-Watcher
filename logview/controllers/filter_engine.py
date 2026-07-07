@@ -1,5 +1,5 @@
 import re
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from logview.models import LogEntry
 
@@ -8,7 +8,7 @@ class LogFilterEngine:
 
     def __init__(self):
         self._filter_text = ""
-        self._filter_level = "ALL"
+        self._filter_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         self._filter_regex = False
         self._filter_from_dt: Optional[datetime] = None
         self._filter_to_dt: Optional[datetime] = None
@@ -17,8 +17,8 @@ class LogFilterEngine:
         self._filter_text = text
         self._filter_regex = regex
 
-    def set_level_filter(self, level: str):
-        self._filter_level = level
+    def set_level_filter(self, levels: List[str]):
+        self._filter_levels = levels
 
     def set_time_range(self, from_dt: Optional[datetime], to_dt: Optional[datetime]):
         self._filter_from_dt = from_dt
@@ -26,10 +26,8 @@ class LogFilterEngine:
 
     def matches(self, log: LogEntry) -> bool:
         # Level filter
-        if self._filter_level != "ALL":
-            if log.level is None:
-                return False
-            if log.level.upper() != self._filter_level:
+        if log.level is not None:
+            if log.level.upper() not in self._filter_levels:
                 return False
 
         # Time range filter (Feature 7)

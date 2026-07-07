@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
         self._setup_style()
 
         # Initialize Core components
+        self._show_detail_panel = True
 
         self._table_font_size = 10          # Feature 9: current font point size
         self._connected_clients: int = 0    # Feature 1: active client count
@@ -176,7 +177,23 @@ class MainWindow(QMainWindow):
     # Slots
     # ------------------------------------------------------------------
 
+    @Slot(bool)
+    def toggle_toolbar(self, checked: bool):
+        if hasattr(self, 'toolbar_builder') and hasattr(self.toolbar_builder, 'toolbar'):
+            self.toolbar_builder.toolbar.setVisible(checked)
 
+    @Slot(bool)
+    def toggle_status_bar(self, checked: bool):
+        if hasattr(self, 'status_bar'):
+            self.status_bar.setVisible(checked)
+
+    @Slot(bool)
+    def toggle_detail_panel(self, checked: bool):
+        self._show_detail_panel = checked
+        for i in range(self.tab_widget.count()):
+            tab = self.tab_widget.widget(i)
+            if hasattr(tab, '_detail_panel'):
+                tab._detail_panel.setVisible(checked)
 
     def toggle_pause(self, paused: bool):
         tab = self.tab_widget.currentWidget()

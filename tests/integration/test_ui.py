@@ -70,10 +70,35 @@ def test_filtering(qtbot, app_config, monkeypatch):
 
     assert window.tab_widget.currentWidget().model.rowCount() == 2
 
-    # Apply filter
-    window.tab_widget.currentWidget().filter_panel.level_combo.setCurrentText("ERROR")
+    # Apply filter by unchecking INFO
+    for cb in window.tab_widget.currentWidget().filter_panel.level_checkboxes:
+        if cb.text() == "INFO":
+            cb.setChecked(False)
+            break
+
     assert window.tab_widget.currentWidget().model.rowCount() == 1
     assert window.tab_widget.currentWidget().model.data(window.tab_widget.currentWidget().model.index(0, 2)) == "ERROR"
+
+def test_view_toggles(qtbot, app_config, monkeypatch):
+    monkeypatch.setattr("logview.ui.components.log_tab.ReceiverWorker.start", lambda self: None)
+
+    window = MainWindow(app_config)
+    qtbot.addWidget(window)
+    window.show()
+
+    assert window.toolbar_builder.toolbar.isVisible()
+    assert window.status_bar.isVisible()
+    assert window.tab_widget.currentWidget()._detail_panel.isVisible()
+
+    window.toggle_toolbar(False)
+    assert not window.toolbar_builder.toolbar.isVisible()
+
+    window.toggle_status_bar(False)
+    assert not window.status_bar.isVisible()
+
+    window.toggle_detail_panel(False)
+    assert not window.tab_widget.currentWidget()._detail_panel.isVisible()
+    assert not window._show_detail_panel
 
 def test_copy_selected_rows(qtbot, app_config, monkeypatch):
     monkeypatch.setattr("logview.ui.components.log_tab.ReceiverWorker.start", lambda self: None)
