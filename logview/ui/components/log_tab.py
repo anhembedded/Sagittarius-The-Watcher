@@ -27,7 +27,7 @@ class LogTab(QWidget):
         self._log_rate_counter = 0
 
         self.parser = LogParser(config.get("log_format", {}).get("pattern", ""))
-        self.model = LogModel(self, color_config=config.get("colors", {}))
+        self.model = LogModel(self, max_lines=config.get("display", {}).get("max_lines", 10000), color_config=config.get("colors", {}))
         self.model.counts_changed.connect(self._on_counts_changed)
 
         self.receiver_thread = ReceiverWorker(self.config, self.parser)
