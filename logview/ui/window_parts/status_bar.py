@@ -33,6 +33,11 @@ class LogStatusBar(QStatusBar):
 
         self.addPermanentWidget(self._make_separator())
 
+        self._status_scroll = QLabel("[Scroll Lock: OFF]")
+        self.addPermanentWidget(self._status_scroll)
+
+        self.addPermanentWidget(self._make_separator())
+
         self._status_levels = QLabel("")
         self.addPermanentWidget(self._status_levels)
 
@@ -68,3 +73,9 @@ class LogStatusBar(QStatusBar):
     def set_client_disconnected(self):
         self._status_connection.setText("● Listening")
         self._status_connection.setStyleSheet("color: #f39c12; padding: 0 8px;")
+
+    def set_scroll_lock(self, locked: bool):
+        if locked:
+            self._status_scroll.setText("[Scroll Lock: ON]")
+        else:
+            self._status_scroll.setText("[Scroll Lock: OFF]")

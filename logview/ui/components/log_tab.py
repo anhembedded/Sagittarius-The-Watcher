@@ -166,7 +166,12 @@ class LogTab(QWidget):
 
     def _on_scroll(self, value: int):
         scrollbar = self.table_view.verticalScrollBar()
-        self.auto_scroll = value >= scrollbar.maximum() - 5
+        # Robust Scroll Threshold: Disable autoscroll if scrolled up more than 10 pixels
+        self.auto_scroll = value >= scrollbar.maximum() - 10
+        if hasattr(self.main_window, 'status_bar'):
+            # "Scroll Lock: ON" means auto_scroll is disabled (user is scrolling up).
+            # "Scroll Lock: OFF" means auto_scroll is active.
+            self.main_window.status_bar.set_scroll_lock(not self.auto_scroll)
 
     def check_autoscroll(self):
         if self.auto_scroll and not self.is_paused:

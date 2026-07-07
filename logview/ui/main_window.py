@@ -462,20 +462,24 @@ class MainWindow(QMainWindow):
         # Restart receiver if connection settings changed
         if connection_changed or format_changed or alerts_changed:
             self.statusBar().showMessage("Restarting receiver for new settings...", 3000)
-            tab = self.tab_widget.currentWidget()
-            if tab:
-                tab.stop()
-                from logview.ui.receiver_worker import ReceiverWorker
-                from logview.log_parser import LogParser
-                # only apply to current tab
-                tab.config = self.config
-                tab.parser = LogParser(self.config.get("log_format", {}).get("pattern", ""))
-                tab.receiver_thread = ReceiverWorker(tab.config, tab.parser)
-                tab.receiver_thread.logs_received.connect(tab.on_logs_received)
-                tab.receiver_thread.error_occurred.connect(self.on_error)
-                tab.receiver_thread.client_connected.connect(self._on_client_connected)
-                tab.receiver_thread.client_disconnected.connect(self._on_client_disconnected)
-                tab.receiver_thread.start()
+            for i in range(self.tab_widget.count()):
+                tab = self.tab_widget.widget(i)
+                if tab:
+                    tab.stop()
+                    from logview.ui.receiver_worker import ReceiverWorker
+                    from logview.log_parser import LogParser
+                    # Ensure the thread is safely terminated
+                    if tab.receiver_thread:
+                        tab.receiver_thread.wait()
+                    # apply to all tabs
+                    tab.config = self.config
+                    tab.parser = LogParser(self.config.get("log_format", {}).get("pattern", ""))
+                    tab.receiver_thread = ReceiverWorker(tab.config, tab.parser)
+                    tab.receiver_thread.logs_received.connect(tab.on_logs_received)
+                    tab.receiver_thread.error_occurred.connect(self.on_error)
+                    tab.receiver_thread.client_connected.connect(self._on_client_connected)
+                    tab.receiver_thread.client_disconnected.connect(self._on_client_disconnected)
+                    tab.receiver_thread.start()
 
     # ------------------------------------------------------------------
     # Window close

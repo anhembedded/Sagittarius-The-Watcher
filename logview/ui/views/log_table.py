@@ -29,6 +29,31 @@ class LogTableView(QTableView):
         # Toggle sort order if same column, else default ascending
         pass  # Handled automatically by setSortingEnabled + model.sort()
 
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_F2:
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                # Previous bookmark
+                self._navigate_bookmark(-1)
+            elif event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                # Next bookmark
+                self._navigate_bookmark(1)
+            else:
+                # Toggle bookmark on current row
+                idx = self.currentIndex()
+                if idx.isValid():
+                    self.model().toggle_bookmark(idx.row())
+        else:
+            super().keyPressEvent(event)
+
+    def _navigate_bookmark(self, direction: int):
+        idx = self.currentIndex()
+        current_row = idx.row() if idx.isValid() else -1
+        new_row = self.model().get_bookmark_row(current_row, direction)
+        if new_row >= 0:
+            new_idx = self.model().index(new_row, 3) # any valid column
+            self.setCurrentIndex(new_idx)
+            self.scrollTo(new_idx, QTableView.ScrollHint.PositionAtCenter)
+
     def eventFilter(self, obj, event):
         if obj is self.viewport():
             if event.type() == QEvent.Type.Wheel:

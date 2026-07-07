@@ -68,6 +68,7 @@ class LogModel(QAbstractTableModel):
 
         # --- Filtering state ---
         self._filter_engine = LogFilterEngine()
+        self._bookmarks_only = False
 
         # --- Sorting state (Feature 8) ---
         self._sort_column: int = -1
@@ -199,6 +200,34 @@ class LogModel(QAbstractTableModel):
             return True
 
         return False
+
+    def toggle_bookmark(self, row: int):
+        if 0 <= row < len(self._filtered_logs):
+            log = self._filtered_logs[row]
+            if log.id in self._bookmarks:
+                self._bookmarks.discard(log.id)
+                new_state = Qt.CheckState.Unchecked.value
+            else:
+                self._bookmarks.add(log.id)
+                new_state = Qt.CheckState.Checked.value
+            idx = self.index(row, COL_BOOKMARK)
+            self.dataChanged.emit(idx, idx, [Qt.ItemDataRole.CheckStateRole])
+
+    def get_bookmark_row(self, current_row: int, direction: int) -> int:
+        """Find the next or previous bookmarked row.
+        Wraps around if reaching the end.
+        """
+        if not self._bookmarks or not self._filtered_logs:
+            return -1
+
+        n = len(self._filtered_logs)
+        row = current_row
+        for _ in range(n):
+            row = (row + direction) % n
+            log = self._filtered_logs[row]
+            if log.id in self._bookmarks:
+                return row
+        return -1
 
     # ------------------------------------------------------------------
     # Feature 8: Column sorting
@@ -336,10 +365,11 @@ class LogModel(QAbstractTableModel):
     # Filtering
     # ------------------------------------------------------------------
 
-    def set_filter(self, text: str, level: str, use_regex: bool):
+    def set_filter(self, text: str, level: str, use_regex: bool, bookmarks_only: bool = False):
         """Updates the text/level filter and re-evaluates all logs."""
         self._filter_engine.set_text_filter(text, use_regex)
         self._filter_engine.set_level_filter(level)
+        self._bookmarks_only = bookmarks_only
         self._apply_filter()
 
     def set_time_range(self, from_dt: Optional[datetime], to_dt: Optional[datetime]):
@@ -349,7 +379,10 @@ class LogModel(QAbstractTableModel):
 
     def _apply_filter(self):
         self.beginResetModel()
-        self._filtered_logs = [log for log in self._all_logs if self._filter_engine.matches(log)]
+        if self._bookmarks_only:
+            self._filtered_logs = [log for log in self._all_logs if log.id in self._bookmarks and self._filter_engine.matches(log)]
+        else:
+            self._filtered_logs = [log for log in self._all_logs if self._filter_engine.matches(log)]
         self._find_match_rows.clear()
         self._find_current_idx = -1
         self.endResetModel()
