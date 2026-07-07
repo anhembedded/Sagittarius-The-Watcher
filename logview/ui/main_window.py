@@ -4,7 +4,7 @@ from typing import Dict, Any, List, Optional
 from PySide6.QtWidgets import (
     QMainWindow, QTableView, QVBoxLayout, QWidget, QToolBar, QStyle,
     QHeaderView, QFileDialog, QMessageBox, QSplitter, QTextEdit, QLabel,
-    QStatusBar, QMenuBar, QApplication, QMenu,
+    QStatusBar, QMenuBar, QApplication, QMenu, QDockWidget,
 )
 from PySide6.QtCore import Qt, QThread, Signal, Slot, QTimer, QEvent
 from PySide6.QtGui import QFont, QKeySequence, QShortcut, QClipboard, QAction, QColor
@@ -14,84 +14,12 @@ from logview.ui.log_delegate import HighlightDelegate
 from logview.ui.find_bar import FindBar
 from logview.ui.components import FilterPanel, TimeRangeWidget
 from logview.ui.settings_dialog import SettingsDialog, save_config_to_toml
-import asyncio
-from logview.receiver import TCPServerReceiver, FileTailReceiver
 from logview.log_parser import LogParser
 from logview.export import export_logs, save_session, load_session
 from logview.models import LogEntry
 from logview.config import DEFAULT_CONFIG_PATH
-
-
-class ReceiverWorker(QThread):
-    """
-    Worker thread to run the async log receivers.
-    # Adapter/Observer Pattern: Adapts the async receivers to Qt's signal/slot mechanism.
-    """
-    logs_received = Signal(list)
-    error_occurred = Signal(str)
-    client_connected = Signal(str)       # address string
-    client_disconnected = Signal(str)    # address string
-
-    def __init__(self, config: Dict[str, Any], parser: LogParser):
-        super().__init__()
-        self.config = config
-        self.parser = parser
-        self.running = True
-        self.loop = None
-        self._async_queue = None
-        self._receivers = []
-
-    def run(self):
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.loop)
-
-        self._async_queue = asyncio.Queue()
-
-        if "tail_file" in self.config and self.config["tail_file"]:
-            self._receivers.append(
-                FileTailReceiver(self.config["tail_file"], self.parser, self._async_queue)
-            )
-        else:
-            host = self.config.get("server", {}).get("host", "localhost")
-            port = self.config.get("server", {}).get("port", 9999)
-            listen_stdin = self.config.get("listen_stdin", False)
-            recv = TCPServerReceiver(host, port, self.parser, self._async_queue, listen_stdin)
-            recv.on_client_connected = lambda addr: self.client_connected.emit(addr)
-            recv.on_client_disconnected = lambda addr: self.client_disconnected.emit(addr)
-            self._receivers.append(recv)
-
-        self.loop.run_until_complete(self._run_async())
-        self.loop.close()
-
-    async def _run_async(self):
-        """Starts all receivers then continuously drains the queue and emits signals."""
-        for r in self._receivers:
-            await r.start()
-
-        try:
-            while self.running:
-                # Yield to event loop so TCP server callbacks (handle_client) can run
-                await asyncio.sleep(0.05)
-
-                logs = []
-                while not self._async_queue.empty():
-                    try:
-                        entry = self._async_queue.get_nowait()
-                        logs.append(entry)
-                    except asyncio.QueueEmpty:
-                        break
-
-                if logs:
-                    self.logs_received.emit(logs)
-        except Exception as e:
-            self.error_occurred.emit(str(e))
-        finally:
-            for r in self._receivers:
-                await r.stop()
-
-    def stop(self):
-        self.running = False
-        self.wait()
+from logview.ui.receiver_worker import ReceiverWorker
+from logview.ui.charts_panel import LiveStatsPanel
 
 
 class MainWindow(QMainWindow):
@@ -146,6 +74,14 @@ class MainWindow(QMainWindow):
 
         # Feature 6: Level counts
         self.model.counts_changed.connect(self._update_level_counts)
+
+        # 📊 Live Statistics & Charts Panel
+        self.stats_dock = QDockWidget("Live Statistics", self)
+        self.stats_panel = LiveStatsPanel(self.stats_dock)
+        self.stats_dock.setWidget(self.stats_panel)
+        self.stats_dock.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.stats_dock)
+        self.model.counts_changed.connect(self.stats_panel.update_counts)
 
         # Install event filter for Ctrl+Scroll zoom (Feature 9)
         self.table_view.viewport().installEventFilter(self)
