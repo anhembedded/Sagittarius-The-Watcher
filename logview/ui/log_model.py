@@ -83,6 +83,7 @@ class LogModel(QAbstractTableModel):
 
         # --- Highlight / find term (Feature 3) ---
         self._highlight_term: str = ""
+        self._highlight_regex: bool = False
 
         # --- Find state ---
         self._find_match_rows: List[int] = []   # indices into _filtered_logs
@@ -273,6 +274,9 @@ class LogModel(QAbstractTableModel):
 
         self.counts_changed.emit(dict(self._level_counts))
 
+    def get_level_counts(self) -> dict:
+        return self._level_counts.copy()
+
     def clear_logs(self):
         """Clears all logs."""
         self.beginResetModel()
@@ -318,9 +322,10 @@ class LogModel(QAbstractTableModel):
     # Feature 3: Find / highlight
     # ------------------------------------------------------------------
 
-    def set_highlight_term(self, term: str):
+    def set_highlight_term(self, term: str, use_regex: bool = False):
         """Set the find-bar search term. Triggers a search over filtered logs."""
         self._highlight_term = term
+        self._highlight_regex = use_regex
         self._rebuild_find_matches()
 
         # Refresh display
@@ -336,10 +341,21 @@ class LogModel(QAbstractTableModel):
         self._find_current_idx = -1
         if not self._highlight_term:
             return
-        term_lower = self._highlight_term.lower()
-        for i, log in enumerate(self._filtered_logs):
-            if term_lower in log.raw.lower():
-                self._find_match_rows.append(i)
+
+        if self._highlight_regex:
+            try:
+                pattern = re.compile(self._highlight_term, re.IGNORECASE)
+                for i, log in enumerate(self._filtered_logs):
+                    if pattern.search(log.raw):
+                        self._find_match_rows.append(i)
+            except re.error:
+                # Invalid regex, ignore
+                pass
+        else:
+            term_lower = self._highlight_term.lower()
+            for i, log in enumerate(self._filtered_logs):
+                if term_lower in log.raw.lower():
+                    self._find_match_rows.append(i)
 
     def find_navigate(self, direction: int) -> int:
         """Move to the next/previous match row.

@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QLineEdit, QPushButton, QLabel
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QLineEdit, QPushButton, QLabel, QCheckBox
 from PySide6.QtCore import Signal, Qt
 
 
@@ -6,12 +6,12 @@ class FindBar(QWidget):
     """Collapsible in-app search bar (similar to a browser Ctrl+F bar).
 
     Signals:
-        term_changed(str): Emitted when the search text changes.
+        term_changed(str, bool): Emitted when the search text changes or regex is toggled.
         navigate(int): Emitted when user requests next (+1) or previous (-1) match.
         closed(): Emitted when the bar is dismissed.
     """
 
-    term_changed = Signal(str)
+    term_changed = Signal(str, bool)
     navigate = Signal(int)
     closed = Signal()
 
@@ -29,9 +29,14 @@ class FindBar(QWidget):
         self._input = QLineEdit()
         self._input.setPlaceholderText("Search in logs…")
         self._input.setFixedWidth(240)
-        self._input.textChanged.connect(self.term_changed)
+        self._input.textChanged.connect(self._emit_term_changed)
         self._input.returnPressed.connect(lambda: self.navigate.emit(1))
         layout.addWidget(self._input)
+
+        self._regex_cb = QCheckBox("Regex")
+        self._regex_cb.setAccessibleName("Regex Search")
+        self._regex_cb.stateChanged.connect(self._emit_term_changed)
+        layout.addWidget(self._regex_cb)
 
         self._match_label = QLabel("")
         self._match_label.setMinimumWidth(70)
@@ -72,8 +77,11 @@ class FindBar(QWidget):
         """Hide the bar and clear the search term."""
         self.setVisible(False)
         self._input.clear()
-        self.term_changed.emit("")
+        self.term_changed.emit("", False)
         self.closed.emit()
+
+    def _emit_term_changed(self, *args):
+        self.term_changed.emit(self._input.text(), self._regex_cb.isChecked())
 
     def set_match_info(self, current: int, total: int):
         """Update the match counter label."""

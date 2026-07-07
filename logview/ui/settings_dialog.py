@@ -4,11 +4,12 @@ import copy
 from PySide6.QtWidgets import (
     QDialog, QDialogButtonBox, QTabWidget, QWidget, QFormLayout,
     QVBoxLayout, QHBoxLayout, QLineEdit, QSpinBox, QPushButton,
-    QLabel, QFrame, QScrollArea, QSizePolicy,
+    QLabel, QFrame, QScrollArea, QSizePolicy, QComboBox
 )
 from PySide6.QtGui import QColor
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QColorDialog
+import re
 
 
 LOG_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -119,6 +120,7 @@ class SettingsDialog(QDialog):
         tabs = QTabWidget()
         tabs.addTab(self._build_connection_tab(), "🔌 Connection")
         tabs.addTab(self._build_colors_tab(), "🎨 Log Colors")
+        tabs.addTab(self._build_log_format_tab(), "⚙️ Log Format")
         root_layout.addWidget(tabs)
 
         # Buttons
@@ -148,6 +150,11 @@ class SettingsDialog(QDialog):
         self._port_spin.setRange(1, 65535)
         self._port_spin.setValue(int(server.get("port", 9999)))
         form.addRow("Port:", self._port_spin)
+
+        alerts = self._config.get("alerts", {})
+        self._alert_edit = QLineEdit(alerts.get("pattern", ""))
+        self._alert_edit.setPlaceholderText("e.g. CRITICAL|Out of Memory")
+        form.addRow("Alert Trigger (Regex):", self._alert_edit)
 
         note = QLabel("ℹ Changes take effect after restarting the receiver.")
         note.setStyleSheet("color: gray; font-size: 10px;")
@@ -196,6 +203,71 @@ class SettingsDialog(QDialog):
 
         return widget
 
+    def _build_log_format_tab(self) -> QWidget:
+        widget = QWidget()
+        form = QFormLayout(widget)
+        form.setContentsMargins(12, 12, 12, 12)
+        form.setVerticalSpacing(10)
+
+        self._preset_combo = QComboBox()
+        self._preset_combo.addItems(["Custom", "Apache", "Nginx", "Spring Boot", "Syslog"])
+        self._preset_combo.currentTextChanged.connect(self._on_preset_changed)
+        form.addRow("Preset:", self._preset_combo)
+
+        log_format = self._config.get("log_format", {})
+
+        self._regex_edit = QLineEdit(log_format.get("pattern", ""))
+        form.addRow("Regex Pattern:", self._regex_edit)
+
+        self._sample_edit = QLineEdit()
+        self._sample_edit.setPlaceholderText("Enter a sample log line here...")
+        form.addRow("Sample Log:", self._sample_edit)
+
+        test_layout = QHBoxLayout()
+        self._test_btn = QPushButton("Test Regex")
+        self._test_btn.setAccessibleName("Test Regex Pattern")
+        self._test_btn.clicked.connect(self._test_regex)
+        test_layout.addWidget(self._test_btn)
+
+        self._test_result_label = QLabel("")
+        self._test_result_label.setWordWrap(True)
+        self._test_result_label.setStyleSheet("color: gray; font-size: 10px;")
+        test_layout.addWidget(self._test_result_label)
+
+        form.addRow(test_layout)
+
+        return widget
+
+    def _on_preset_changed(self, text: str):
+        presets = {
+            "Apache": r'^(?P<host>\S+) \S+ \S+ \[(?P<timestamp>[\w:/]+\s[+\-]\d{4})\] "(?P<request>.*?)" (?P<status>\d{3}) (?P<size>\S+)',
+            "Nginx": r'^(?P<host>\S+) - \S+ \[(?P<timestamp>[\w:/]+\s[+\-]\d{4})\] "(?P<request>.*?)" (?P<status>\d{3}) (?P<size>\S+)',
+            "Spring Boot": r'^(?P<timestamp>\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\w+)\s+\d+\s+---\s+\[.*?\]\s+.*?\s+:\s+(?P<message>.*)',
+            "Syslog": r'^(?P<timestamp>\w{3}\s+\d+\s\d{2}:\d{2}:\d{2})\s+(?P<host>\S+)\s+(?P<app>\S+):\s+(?P<message>.*)'
+        }
+        if text in presets:
+            self._regex_edit.setText(presets[text])
+
+    def _test_regex(self):
+        pattern = self._regex_edit.text()
+        sample = self._sample_edit.text()
+        try:
+            regex = re.compile(pattern)
+            match = regex.match(sample)
+            if match:
+                groups = match.groupdict()
+                result_text = "Match found!\n"
+                for k, v in groups.items():
+                    result_text += f"{k}: {v}\n"
+                self._test_result_label.setStyleSheet("color: green; font-size: 10px;")
+                self._test_result_label.setText(result_text)
+            else:
+                self._test_result_label.setStyleSheet("color: red; font-size: 10px;")
+                self._test_result_label.setText("No match.")
+        except re.error as e:
+            self._test_result_label.setStyleSheet("color: red; font-size: 10px;")
+            self._test_result_label.setText(f"Invalid regex: {e}")
+
     # ------------------------------------------------------------------
     # Result extraction
     # ------------------------------------------------------------------
@@ -214,6 +286,16 @@ class SettingsDialog(QDialog):
         cfg["colors"] = {}
         for level, row in self._level_rows.items():
             cfg["colors"][level] = row.get_colors()
+
+        # Log Format
+        if "log_format" not in cfg:
+            cfg["log_format"] = {}
+        cfg["log_format"]["pattern"] = self._regex_edit.text()
+
+        # Alerts
+        if "alerts" not in cfg:
+            cfg["alerts"] = {}
+        cfg["alerts"]["pattern"] = self._alert_edit.text()
 
         return cfg
 

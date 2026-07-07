@@ -4,7 +4,8 @@ from typing import Dict, Any, List, Optional
 from PySide6.QtWidgets import (
     QMainWindow, QVBoxLayout, QWidget,
     QFileDialog, QMessageBox, QSplitter,
-    QApplication, QDockWidget, QStyle,
+    QApplication, QDockWidget, QStyle, QSystemTrayIcon,
+    QTabWidget
 )
 from PySide6.QtCore import Qt, Signal, Slot, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut, QGuiApplication, QFont
@@ -40,13 +41,7 @@ class MainWindow(QMainWindow):
         self._setup_style()
 
         # Initialize Core components
-        self.parser = LogParser(config["log_format"]["pattern"])
-        self.model = LogModel(self, color_config=config.get("colors", {}))
 
-        # State
-        self.is_paused = False
-        self.pending_logs: List[LogEntry] = []
-        self._log_rate_counter = 0          # Feature 1: logs received since last tick
         self._table_font_size = 10          # Feature 9: current font point size
         self._connected_clients: int = 0    # Feature 1: active client count
 
@@ -60,18 +55,15 @@ class MainWindow(QMainWindow):
         self._apply_theme()
         QGuiApplication.styleHints().colorSchemeChanged.connect(self._on_color_scheme_changed)
 
-        # Start Receiver
-        self.receiver_thread = ReceiverWorker(self.config, self.parser)
-        self.receiver_thread.logs_received.connect(self.on_logs_received)
-        self.receiver_thread.error_occurred.connect(self.on_error)
-        self.receiver_thread.client_connected.connect(self._on_client_connected)
-        self.receiver_thread.client_disconnected.connect(self._on_client_disconnected)
-        self.receiver_thread.start()
 
-        # Auto-scroll timer
-        self.scroll_timer = QTimer(self)
-        self.scroll_timer.timeout.connect(self._check_autoscroll)
-        self.scroll_timer.start(200)
+
+        # System Tray for Alerts (Feature 3)
+        self.tray_icon = None
+        if QSystemTrayIcon.isSystemTrayAvailable():
+            self.tray_icon = QSystemTrayIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon), self)
+            self.tray_icon.show()
+
+        # Auto-scroll state is now on tab
         self.auto_scroll = True
 
         # Feature 1: Rate counter timer (1s tick)
@@ -80,7 +72,7 @@ class MainWindow(QMainWindow):
         self._rate_timer.start(1000)
 
         # Feature 6: Level counts
-        self.model.counts_changed.connect(self._update_level_counts)
+
 
         # 📊 Live Statistics & Charts Panel
         self.stats_dock = QDockWidget("Live Statistics", self)
@@ -88,7 +80,9 @@ class MainWindow(QMainWindow):
         self.stats_dock.setWidget(self.stats_panel)
         self.stats_dock.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.stats_dock)
-        self.model.counts_changed.connect(self.stats_panel.update_counts)
+
+        from logview.ui.components.log_tab import LogTab
+        self.add_source_tab("Source 1", self.config)
 
         # Install event filter for Ctrl+Scroll zoom (Feature 9)
 
@@ -158,6 +152,11 @@ class MainWindow(QMainWindow):
     # UI setup
     # ------------------------------------------------------------------
 
+    def add_source_tab(self, name: str, config: Dict[str, Any]):
+        from logview.ui.components.log_tab import LogTab
+        tab = LogTab(config, self)
+        self.tab_widget.addTab(tab, name)
+
     def _setup_ui(self):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -167,75 +166,21 @@ class MainWindow(QMainWindow):
 
         self.toolbar_builder = ToolbarBuilder(self)
 
-        # Filter Panel
-        self.filter_panel = FilterPanel()
-        self.filter_panel.filter_changed.connect(self.model.set_filter)
-        main_layout.addWidget(self.filter_panel)
-
-        # Feature 7: Time Range Widget
-        self.time_range_widget = TimeRangeWidget()
-        self.time_range_widget.range_changed.connect(self.model.set_time_range)
-        main_layout.addWidget(self.time_range_widget)
-
-        # Feature 3: Find Bar
-        self._find_bar = FindBar()
-        self._find_bar.term_changed.connect(self._on_find_term_changed)
-        self._find_bar.navigate.connect(self._on_find_navigate)
-        self._find_bar.closed.connect(self._on_find_closed)
-        main_layout.addWidget(self._find_bar)
-
-        # Feature 2: Splitter with table + detail panel
-        splitter = QSplitter(Qt.Orientation.Vertical)
-        splitter.setChildrenCollapsible(False)
-
-        # Table View
-        self.table_view = LogTableView(self)
-        self.table_view.setModel(self.model)
-
-        # Setup log delegate for the entire table view to handle custom row colors overriding themes
-        self._delegate = LogDelegate(self.table_view)
-        self.table_view.setItemDelegate(self._delegate)
-
-        # Column widths
-        self.table_view.setColumnWidth(0, 30)   # Bookmark
-        self.table_view.setColumnWidth(1, 170)  # Timestamp
-        self.table_view.setColumnWidth(2, 80)   # Level
-
-        # Apply initial font size
-        self._apply_table_font()
-
-        splitter.addWidget(self.table_view)
-
-        # Feature 2: Detail Panel
-        self._detail_panel = DetailPanel()
-        splitter.addWidget(self._detail_panel)
-
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 1)
-
-        main_layout.addWidget(splitter)
-
-        # Connect selection to detail panel
-        self.table_view.selectionModel().currentRowChanged.connect(self._on_row_selected)
-        # Connect scrollbar for auto-scroll
-        self.table_view.verticalScrollBar().valueChanged.connect(self._on_scroll)
+        # Feature 5: Multi-Source Tabbed Interface
+        self.tab_widget = QTabWidget()
+        self.tab_widget.currentChanged.connect(self._on_tab_changed)
+        main_layout.addWidget(self.tab_widget)
 
 
     # ------------------------------------------------------------------
     # Slots
     # ------------------------------------------------------------------
 
-    @Slot(list)
-    def on_logs_received(self, logs: List[LogEntry]):
-        self._log_rate_counter += len(logs)
-        if self.is_paused:
-            self.pending_logs.extend(logs)
-        else:
-            self.model.add_logs(logs)
-            self._update_status()
+
 
     def toggle_pause(self, paused: bool):
-        self.is_paused = paused
+        tab = self.tab_widget.currentWidget()
+        if tab: tab.is_paused = paused
         if paused:
             self.toolbar_builder.action_pause.setIcon(
                 self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
@@ -246,16 +191,23 @@ class MainWindow(QMainWindow):
                 self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPause)
             )
             self.toolbar_builder.action_pause.setText("Pause")
-            if self.pending_logs:
-                self.model.add_logs(self.pending_logs)
-                self.pending_logs.clear()
+            tab = self.tab_widget.currentWidget()
+            if tab and tab.pending_logs:
+                tab.model.add_logs(tab.pending_logs)
+                tab.pending_logs.clear()
                 self._update_status()
 
     def clear_logs(self):
-        self.model.clear_logs()
-        self.pending_logs.clear()
-        self._detail_panel.clear()
-        self._update_status()
+        tab = self.tab_widget.currentWidget()
+        if tab:
+            tab.clear_logs()
+
+    @Slot(int)
+    def _on_tab_changed(self, index: int):
+        tab = self.tab_widget.widget(index)
+        if tab:
+            self._update_status()
+            tab._on_counts_changed(tab.model.get_level_counts())
 
     @Slot(str)
     def on_error(self, message: str):
@@ -272,37 +224,36 @@ class MainWindow(QMainWindow):
         if self._connected_clients == 0:
             self.status_bar.set_client_disconnected()
 
-    def _on_scroll(self, value: int):
-        scrollbar = self.table_view.verticalScrollBar()
-        self.auto_scroll = value >= scrollbar.maximum() - 5
 
-    def _check_autoscroll(self):
-        if self.auto_scroll and not self.is_paused:
-            self.table_view.scrollToBottom()
+
+
 
     # Feature 2: Detail panel
-    @Slot()
-    def _on_row_selected(self, current, previous):
-        row = current.row()
-        entry = self.model.get_entry_at_row(row)
-        self._detail_panel.update_details(entry)
+
 
     # Feature 14: Relative time
     def _on_relative_time_toggled(self, checked: bool):
-        self.model.toggle_relative_time()
+        tab = self.tab_widget.currentWidget()
+        if tab: tab.model.toggle_relative_time()
 
     # ------------------------------------------------------------------
     # Feature 1: Status bar updates
     # ------------------------------------------------------------------
 
     def _update_status(self):
-        total = len(self.model.get_all_logs())
-        shown = self.model.get_filtered_count()
-        self.status_bar.update_status(total, shown)
+        tab = self.tab_widget.currentWidget()
+        if tab:
+            total = len(tab.model.get_all_logs())
+            shown = tab.model.get_filtered_count()
+            self.status_bar.update_status(total, shown)
 
     def _update_rate_display(self):
-        rate = self._log_rate_counter
-        self._log_rate_counter = 0
+        rate = 0
+        for i in range(self.tab_widget.count()):
+            tab = self.tab_widget.widget(i)
+            if tab:
+                rate += tab._log_rate_counter
+                tab._log_rate_counter = 0
         self.status_bar.update_rate_display(rate)
 
     @Slot(dict)
@@ -316,15 +267,17 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _toggle_find_bar(self):
-        if self._find_bar.isVisible():
-            self._find_bar.close_bar()
-        else:
-            self._find_bar.open()
+        tab = self.tab_widget.currentWidget()
+        if tab:
+            if tab._find_bar.isVisible():
+                tab._find_bar.close_bar()
+            else:
+                tab._find_bar.open()
 
-    @Slot(str)
-    def _on_find_term_changed(self, term: str):
-        self.model.set_highlight_term(term)
-        self._delegate.set_term(term)
+    @Slot(str, bool)
+    def _on_find_term_changed(self, term: str, use_regex: bool):
+        self.model.set_highlight_term(term, use_regex)
+        self._delegate.set_term(term, use_regex)
         self.table_view.viewport().update()
         total = self.model.find_match_count()
         self._find_bar.set_match_info(self.model.find_current_match(), total)
@@ -357,14 +310,16 @@ class MainWindow(QMainWindow):
             super().keyPressEvent(event)
 
     def _copy_selected_rows(self):
-        selected = self.table_view.selectedIndexes()
+        tab = self.tab_widget.currentWidget()
+        if not tab: return
+        selected = tab.table_view.selectedIndexes()
         if not selected:
             return
         # Collect unique rows
         rows = sorted(set(idx.row() for idx in selected))
         lines = []
         for row in rows:
-            entry = self.model.get_entry_at_row(row)
+            entry = tab.model.get_entry_at_row(row)
             if entry:
                 lines.append(entry.raw)
         if lines:
@@ -372,13 +327,15 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Copied {len(lines)} row(s) to clipboard", 2000)
 
     def _copy_selected_messages(self):
-        selected = self.table_view.selectedIndexes()
+        tab = self.tab_widget.currentWidget()
+        if not tab: return
+        selected = tab.table_view.selectedIndexes()
         if not selected:
             return
         rows = sorted(set(idx.row() for idx in selected))
         lines = []
         for row in rows:
-            entry = self.model.get_entry_at_row(row)
+            entry = tab.model.get_entry_at_row(row)
             if entry:
                 lines.append(entry.message)
         if lines:
@@ -391,13 +348,16 @@ class MainWindow(QMainWindow):
 
     def _zoom_font(self, delta: int):
         self._table_font_size = max(6, min(24, self._table_font_size + delta))
-        self._apply_table_font()
+        for i in range(self.tab_widget.count()):
+            tab = self.tab_widget.widget(i)
+            if tab:
+                self._apply_table_font_to_view(tab.table_view)
 
-    def _apply_table_font(self):
+    def _apply_table_font_to_view(self, table_view):
         font = QFont()
         font.setPointSize(self._table_font_size)
-        self.table_view.setFont(font)
-        self.table_view.verticalHeader().setDefaultSectionSize(self._table_font_size + 10)
+        table_view.setFont(font)
+        table_view.verticalHeader().setDefaultSectionSize(self._table_font_size + 10)
 
     # ------------------------------------------------------------------
     # Export / Session (Feature 15)
@@ -409,7 +369,9 @@ class MainWindow(QMainWindow):
         )
         if file_path:
             try:
-                logs_to_export = self.model.get_all_logs()
+                tab = self.tab_widget.currentWidget()
+                if not tab: return
+                logs_to_export = tab.model.get_all_logs()
                 format_type = "json" if file_path.endswith(".json") else "text"
                 export_logs(logs_to_export, file_path, format_type)
                 QMessageBox.information(self, "Export Successful", f"Logs exported to {file_path}")
@@ -423,7 +385,9 @@ class MainWindow(QMainWindow):
         )
         if file_path:
             try:
-                save_session(self.model.get_all_logs(), file_path)
+                tab = self.tab_widget.currentWidget()
+                if not tab: return
+                save_session(tab.model.get_all_logs(), file_path)
                 self.statusBar().showMessage(f"Session saved to {file_path}", 3000)
             except Exception as e:
                 QMessageBox.critical(self, "Save Failed", str(e))
@@ -436,8 +400,10 @@ class MainWindow(QMainWindow):
         if file_path:
             try:
                 entries = load_session(file_path)
-                self.model.clear_logs()
-                self.model.add_logs(entries)
+                tab = self.tab_widget.currentWidget()
+                if not tab: return
+                tab.model.clear_logs()
+                tab.model.add_logs(entries)
                 self.statusBar().showMessage(
                     f"Loaded {len(entries):,} log entries from session", 3000
                 )
@@ -447,6 +413,17 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Settings
     # ------------------------------------------------------------------
+
+
+    def _on_new_source_tab(self):
+        import copy
+        new_config = copy.deepcopy(self.config)
+        # We can prompt the user for a new port, but to keep it under 50 lines without creating a new dialog class,
+        # we can just increment the default port and let them change it in settings.
+        current_port = new_config.get("server", {}).get("port", 9999)
+        new_config["server"]["port"] = current_port + self.tab_widget.count()
+        name = f"Source {self.tab_widget.count() + 1} (Port {new_config['server']['port']})"
+        self.add_source_tab(name, new_config)
 
     def open_settings(self):
         """Opens the settings dialog and applies any changes."""
@@ -464,6 +441,9 @@ class MainWindow(QMainWindow):
             old_server.get("port") != new_server.get("port")
         )
 
+        format_changed = self.config.get("log_format", {}).get("pattern") != new_config.get("log_format", {}).get("pattern")
+        alerts_changed = self.config.get("alerts", {}).get("pattern") != new_config.get("alerts", {}).get("pattern")
+
         # Save to TOML
         try:
             save_config_to_toml(new_config, DEFAULT_CONFIG_PATH)
@@ -474,23 +454,35 @@ class MainWindow(QMainWindow):
         self.config = new_config
 
         # Live-update colors in the model
-        self.model.update_colors(new_config.get("colors", {}))
+        for i in range(self.tab_widget.count()):
+            tab = self.tab_widget.widget(i)
+            if tab: tab.model.update_colors(new_config.get("colors", {}))
 
         # Restart receiver if connection settings changed
-        if connection_changed:
-            self.statusBar().showMessage("Restarting receiver on new host/port...", 3000)
-            self.receiver_thread.stop()
-            self.receiver_thread = ReceiverWorker(self.config, self.parser)
-            self.receiver_thread.logs_received.connect(self.on_logs_received)
-            self.receiver_thread.error_occurred.connect(self.on_error)
-            self.receiver_thread.client_connected.connect(self._on_client_connected)
-            self.receiver_thread.client_disconnected.connect(self._on_client_disconnected)
-            self.receiver_thread.start()
+        if connection_changed or format_changed or alerts_changed:
+            self.statusBar().showMessage("Restarting receiver for new settings...", 3000)
+            tab = self.tab_widget.currentWidget()
+            if tab:
+                tab.stop()
+                from logview.ui.receiver_worker import ReceiverWorker
+                from logview.log_parser import LogParser
+                # only apply to current tab
+                tab.config = self.config
+                tab.parser = LogParser(self.config.get("log_format", {}).get("pattern", ""))
+                tab.receiver_thread = ReceiverWorker(tab.config, tab.parser)
+                tab.receiver_thread.logs_received.connect(tab.on_logs_received)
+                tab.receiver_thread.error_occurred.connect(self.on_error)
+                tab.receiver_thread.client_connected.connect(self._on_client_connected)
+                tab.receiver_thread.client_disconnected.connect(self._on_client_disconnected)
+                tab.receiver_thread.start()
 
     # ------------------------------------------------------------------
     # Window close
     # ------------------------------------------------------------------
 
     def closeEvent(self, event):
-        self.receiver_thread.stop()
+        for i in range(self.tab_widget.count()):
+            tab = self.tab_widget.widget(i)
+            if tab:
+                tab.stop()
         super().closeEvent(event)
