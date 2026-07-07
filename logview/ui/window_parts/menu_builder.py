@@ -41,6 +41,13 @@ class MenuBuilder:
         act_export.triggered.connect(self.main_window.export_logs)
         file_menu.addAction(act_export)
 
+        # View Menu
+        view_menu = menu_bar.addMenu("View")
+        if hasattr(self.main_window, 'stats_dock') and self.main_window.stats_dock:
+            act_toggle_stats = self.main_window.stats_dock.toggleViewAction()
+            act_toggle_stats.setText("Live Statistics Panel")
+            view_menu.addAction(act_toggle_stats)
+
         # Theme Menu
         self.theme_menu = menu_bar.addMenu("Theme")
         self.theme_group = QActionGroup(self.main_window)

@@ -40,7 +40,23 @@ class LogParser:
             pattern (str): The regex pattern containing named groups
                            like 'timestamp', 'level', and 'message'.
         """
-        self.pattern = re.compile(pattern)
+        try:
+            self.pattern = re.compile(pattern)
+        except re.error as e:
+            import logging
+            logging.warning(f"Invalid regex pattern '{pattern}': {e}. Falling back to raw regex.")
+            from PySide6.QtWidgets import QMessageBox
+            # To avoid crashing or showing dialogs in non-GUI thread testing contexts,
+            # we can attempt to show a message box if a QApplication exists.
+            from PySide6.QtWidgets import QApplication
+            if QApplication.instance():
+                QMessageBox.warning(
+                    None,
+                    "Invalid Log Format Regex",
+                    f"The configured log format regex pattern is invalid:\n{e}\n\n"
+                    "Falling back to a raw matching pattern to prevent application crash."
+                )
+            self.pattern = re.compile(r"^(?P<message>.*)")
 
     def parse(self, line: str) -> LogEntry:
         """Parses a single log line.
