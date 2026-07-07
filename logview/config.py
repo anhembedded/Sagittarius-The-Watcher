@@ -11,7 +11,7 @@ port = 9999
 max_lines = 10000
 
 [log_format]
-pattern = "^\\\\[(?P<timestamp>.*?)\\\\]\\\\s*\\\\[(?P<level>\\\\w+)\\\\]\\\\s*(?P<message>.*)"
+pattern = "^(?:\\\\[(?P<timestamp>.*?)\\\\])?\\\\s*(?:\\\\[(?P<level>\\\\w+)\\\\])?\\\\s*(?:\\\\[(?P<module>\\\\w+)\\\\])?\\\\s*(?:\\\\[(?P<submodule>\\\\w+)\\\\])?\\\\s*(?P<message>.*)"
 """
 
 def parse_args() -> argparse.Namespace:
@@ -95,7 +95,7 @@ def get_config() -> Dict[str, Any]:
     if "display" not in config:
         config["display"] = {"max_lines": 10000}
     if "log_format" not in config:
-        config["log_format"] = {"pattern": r"^\[(?P<timestamp>.*?)\]\s*\[(?P<level>\w+)\]\s*(?P<message>.*)"}
+        config["log_format"] = {"pattern": r"^(?:\[(?P<timestamp>.*?)\])?\s*(?:\[(?P<level>\w+)\])?\s*(?:\[(?P<module>\w+)\])?\s*(?:\[(?P<submodule>\w+)\])?\s*(?P<message>.*)"}
     else:
         # If read from TOML string, it should already be parsed correctly.
         # Ensure we have a string.

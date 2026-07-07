@@ -43,6 +43,27 @@ class MenuBuilder:
 
         # View Menu
         view_menu = menu_bar.addMenu("View")
+
+        act_toggle_toolbar = QAction("Toggle Toolbar", self.main_window)
+        act_toggle_toolbar.setCheckable(True)
+        act_toggle_toolbar.setChecked(True)
+        act_toggle_toolbar.toggled.connect(self.main_window.toggle_toolbar)
+        view_menu.addAction(act_toggle_toolbar)
+
+        act_toggle_status_bar = QAction("Toggle Status Bar", self.main_window)
+        act_toggle_status_bar.setCheckable(True)
+        act_toggle_status_bar.setChecked(True)
+        act_toggle_status_bar.toggled.connect(self.main_window.toggle_status_bar)
+        view_menu.addAction(act_toggle_status_bar)
+
+        act_toggle_detail_panel = QAction("Toggle Detail Panel", self.main_window)
+        act_toggle_detail_panel.setCheckable(True)
+        act_toggle_detail_panel.setChecked(True)
+        act_toggle_detail_panel.toggled.connect(self.main_window.toggle_detail_panel)
+        view_menu.addAction(act_toggle_detail_panel)
+
+        view_menu.addSeparator()
+
         if hasattr(self.main_window, 'stats_dock') and self.main_window.stats_dock:
             act_toggle_stats = self.main_window.stats_dock.toggleViewAction()
             act_toggle_stats.setText("Live Statistics Panel")

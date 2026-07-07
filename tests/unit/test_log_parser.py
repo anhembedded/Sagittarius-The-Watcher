@@ -111,3 +111,30 @@ def test_default_config_matches_generator_logs():
         assert entry.timestamp == ts
         assert entry.level == lvl
         assert entry.message == msg
+
+def test_log_parser_module_submodule():
+    pattern = r"^(?:\[(?P<timestamp>.*?)\])?\s*(?:\[(?P<level>\w+)\])?\s*(?:\[(?P<module>\w+)\])?\s*(?:\[(?P<submodule>\w+)\])?\s*(?P<message>.*)"
+    parser = LogParser(pattern)
+    log_line = "[2023-10-27 10:00:00] [INFO] [Network] [Socket] Connection established"
+
+    entry = parser.parse(log_line)
+
+    assert entry.timestamp == "2023-10-27 10:00:00"
+    assert entry.level == "INFO"
+    assert entry.module == "Network"
+    assert entry.submodule == "Socket"
+    assert entry.message == "Connection established"
+    assert entry.raw == log_line
+
+def test_log_parser_json_module_submodule():
+    pattern = r"^(?:\[(?P<timestamp>.*?)\])?\s*(?:\[(?P<level>\w+)\])?\s*(?:\[(?P<module>\w+)\])?\s*(?:\[(?P<submodule>\w+)\])?\s*(?P<message>.*)"
+    parser = LogParser(pattern)
+    log_line = '{"timestamp": "2023", "level": "info", "module": "Net", "submodule": "Sock", "message": "msg"}'
+
+    entry = parser.parse(log_line)
+
+    assert entry.timestamp == "2023"
+    assert entry.level == "INFO"
+    assert entry.module == "Net"
+    assert entry.submodule == "Sock"
+    assert entry.message == "msg"

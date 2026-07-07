@@ -44,8 +44,8 @@ class LogDelegate(QStyledItemDelegate):
             opt.palette.setBrush(opt.palette.ColorGroup.Active, opt.palette.ColorRole.Text, fg_brush)
             opt.palette.setBrush(opt.palette.ColorGroup.Inactive, opt.palette.ColorRole.Text, fg_brush)
 
-        # 3. Rich search term highlighting for the message column (column 3)
-        if index.column() == 3 and self._term:
+        # 3. Rich search term highlighting for the message column (column 5)
+        if index.column() == 5 and self._term:
             painter.save()
             text = opt.text
 
