@@ -16,7 +16,6 @@ class FilterPanel(QWidget):
 
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Filter logs...")
-        self.search_input.setClearButtonEnabled(True)
 
         self.level_combo = QComboBox()
         self.level_combo.addItems(["ALL", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
