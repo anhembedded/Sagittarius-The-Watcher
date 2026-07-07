@@ -28,3 +28,11 @@ class LogEntry:
     def __post_init__(self):
         if not self.id:
             self.id = uuid.uuid4().hex
+        self._raw_lower: Optional[str] = None
+
+    @property
+    def raw_lower(self) -> str:
+        """Lazily evaluates and caches the lowercase version of the raw log string."""
+        if self._raw_lower is None:
+            self._raw_lower = self.raw.lower()
+        return self._raw_lower

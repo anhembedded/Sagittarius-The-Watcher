@@ -354,7 +354,7 @@ class LogModel(QAbstractTableModel):
         else:
             term_lower = self._highlight_term.lower()
             for i, log in enumerate(self._filtered_logs):
-                if term_lower in log.raw.lower():
+                if term_lower in log.raw_lower:
                     self._find_match_rows.append(i)
 
     def find_navigate(self, direction: int) -> int:
