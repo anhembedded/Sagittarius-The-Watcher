@@ -2,12 +2,12 @@ import sys
 from typing import Dict, Any, List, Optional
 
 from PySide6.QtWidgets import (
-    QMainWindow, QTableView, QVBoxLayout, QWidget, QToolBar, QStyle,
-    QHeaderView, QFileDialog, QMessageBox, QSplitter, QTextEdit, QLabel,
-    QStatusBar, QMenuBar, QApplication, QMenu, QToolButton, QDockWidget,
+    QMainWindow, QVBoxLayout, QWidget,
+    QFileDialog, QMessageBox, QSplitter,
+    QApplication, QDockWidget, QStyle,
 )
-from PySide6.QtCore import Qt, QThread, Signal, Slot, QTimer, QEvent
-from PySide6.QtGui import QFont, QKeySequence, QShortcut, QClipboard, QAction, QColor, QGuiApplication, QActionGroup
+from PySide6.QtCore import Qt, Signal, Slot, QTimer
+from PySide6.QtGui import QKeySequence, QShortcut, QGuiApplication, QFont
 
 from logview.ui.log_model import LogModel
 from logview.ui.log_delegate import LogDelegate
@@ -20,6 +20,11 @@ from logview.models import LogEntry
 from logview.config import DEFAULT_CONFIG_PATH
 from logview.ui.receiver_worker import ReceiverWorker
 from logview.ui.charts_panel import LiveStatsPanel
+from logview.ui.window_parts.menu_builder import MenuBuilder
+from logview.ui.window_parts.toolbar_builder import ToolbarBuilder
+from logview.ui.window_parts.status_bar import LogStatusBar
+from logview.ui.views.log_table import LogTableView
+from logview.ui.components.detail_panel import DetailPanel
 
 
 class MainWindow(QMainWindow):
@@ -46,9 +51,10 @@ class MainWindow(QMainWindow):
         self._connected_clients: int = 0    # Feature 1: active client count
 
         # Setup UI
-        self._setup_menu()
+        self.menu_builder = MenuBuilder(self)
         self._setup_ui()
-        self._setup_status_bar()
+        self.status_bar = LogStatusBar(self)
+        self.setStatusBar(self.status_bar)
 
         self.is_dark_theme = QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark
         self._apply_theme()
@@ -85,7 +91,6 @@ class MainWindow(QMainWindow):
         self.model.counts_changed.connect(self.stats_panel.update_counts)
 
         # Install event filter for Ctrl+Scroll zoom (Feature 9)
-        self.table_view.viewport().installEventFilter(self)
 
         # Ctrl+F shortcut (Feature 3)
         find_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
@@ -94,78 +99,18 @@ class MainWindow(QMainWindow):
         # Update initial status
         self._update_status()
 
-    # ------------------------------------------------------------------
-    # Menu (Feature 15: Session save/load)
-    # ------------------------------------------------------------------
-
-    def _setup_menu(self):
-        menu_bar = self.menuBar()
-
-        file_menu = menu_bar.addMenu("File")
-
-        act_save = QAction("Save Session…", self)
-        act_save.setShortcut(QKeySequence("Ctrl+S"))
-        act_save.triggered.connect(self.save_session)
-        file_menu.addAction(act_save)
-
-        act_load = QAction("Load Session…", self)
-        act_load.setShortcut(QKeySequence("Ctrl+O"))
-        act_load.triggered.connect(self.load_session)
-        file_menu.addAction(act_load)
-
-        file_menu.addSeparator()
-
-        act_export = QAction("Export Logs…", self)
-        act_export.triggered.connect(self.export_logs)
-        file_menu.addAction(act_export)
-
-        # Theme Menu
-        self.theme_menu = menu_bar.addMenu("Theme")
-        self.theme_group = QActionGroup(self)
-        self.theme_group.setExclusive(True)
-
-        current_theme = self.config.get("theme", {}).get("name", "auto")
-
-        def add_theme_action(name, display_name, parent_menu):
-            act = QAction(display_name, self)
-            act.setCheckable(True)
-            if name == current_theme:
-                act.setChecked(True)
-            # Use default parameter value to capture current 'name' value inside lambda
-            act.triggered.connect(lambda checked=False, n=name: self.change_theme(n))
-            self.theme_group.addAction(act)
-            parent_menu.addAction(act)
-            return act
-
-        add_theme_action("auto", "System Default (Auto)", self.theme_menu)
-        add_theme_action("dark", "PyQtDarkTheme (Dark)", self.theme_menu)
-        add_theme_action("light", "PyQtDarkTheme (Light)", self.theme_menu)
-
-        self.theme_menu.addSeparator()
-
-        try:
-            from qt_material import list_themes
-            all_material = list_themes()
-        except ImportError:
-            all_material = []
-
-        if all_material:
-            dark_menu = self.theme_menu.addMenu("Material Dark Themes")
-            light_menu = self.theme_menu.addMenu("Material Light Themes")
-
-            for t in all_material:
-                clean_name = t.replace(".xml", "").replace("_", " ").title()
-                if t.startswith("dark_"):
-                    add_theme_action(t, clean_name, dark_menu)
-                else:
-                    add_theme_action(t, clean_name, light_menu)
-
     def change_theme(self, name: str):
         if "theme" not in self.config:
             self.config["theme"] = {}
         self.config["theme"]["name"] = name
         save_config_to_toml(self.config, DEFAULT_CONFIG_PATH)
         self._apply_theme()
+
+        if hasattr(self, "menu_builder") and hasattr(self.menu_builder, "theme_group"):
+            for act in self.menu_builder.theme_group.actions():
+                if act.text().lower().startswith(name.lower()):
+                    act.setChecked(True)
+                    break
 
     # ------------------------------------------------------------------
     # Theme
@@ -220,52 +165,7 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Toolbar
-        self.toolbar = QToolBar("Main Toolbar")
-        self.addToolBar(self.toolbar)
-
-        self.action_pause = self.toolbar.addAction(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPause), "Pause"
-        )
-        self.action_pause.setCheckable(True)
-        self.action_pause.toggled.connect(self.toggle_pause)
-
-        self.action_clear = self.toolbar.addAction(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon), "Clear"
-        )
-        self.action_clear.triggered.connect(self.clear_logs)
-
-        self.action_copy = self.toolbar.addAction(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon), "Copy"
-        )
-        self.action_copy.setToolTip("Copy Selected Logs (Ctrl+C)")
-        self.action_copy.triggered.connect(self._copy_selected_rows)
-
-        self.toolbar.addSeparator()
-
-        # Feature 14: Relative timestamp toggle
-        self.action_rel_time = self.toolbar.addAction(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_DialogResetButton),
-            "Relative Time"
-        )
-        self.action_rel_time.setCheckable(True)
-        self.action_rel_time.setToolTip("Toggle relative timestamps (e.g. '2s ago')")
-        self.action_rel_time.toggled.connect(self._on_relative_time_toggled)
-
-        self.toolbar.addSeparator()
-
-        self.action_theme = self.toolbar.addAction(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_DesktopIcon), "Theme"
-        )
-        theme_btn = self.toolbar.widgetForAction(self.action_theme)
-        if isinstance(theme_btn, QToolButton):
-            theme_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-            theme_btn.setMenu(self.theme_menu)
-
-        self.action_settings = self.toolbar.addAction(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView), "Settings"
-        )
-        self.action_settings.triggered.connect(self.open_settings)
+        self.toolbar_builder = ToolbarBuilder(self)
 
         # Filter Panel
         self.filter_panel = FilterPanel()
@@ -289,16 +189,8 @@ class MainWindow(QMainWindow):
         splitter.setChildrenCollapsible(False)
 
         # Table View
-        self.table_view = QTableView()
+        self.table_view = LogTableView(self)
         self.table_view.setModel(self.model)
-        self.table_view.setAlternatingRowColors(True)
-        self.table_view.horizontalHeader().setStretchLastSection(True)
-        self.table_view.verticalHeader().setVisible(False)
-        self.table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
-        self.table_view.setSortingEnabled(True)     # Feature 8
-        self.table_view.horizontalHeader().sectionClicked.connect(self._on_header_clicked)
-        self.table_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.table_view.customContextMenuRequested.connect(self._show_context_menu)
 
         # Setup log delegate for the entire table view to handle custom row colors overriding themes
         self._delegate = LogDelegate(self.table_view)
@@ -315,11 +207,7 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self.table_view)
 
         # Feature 2: Detail Panel
-        self._detail_panel = QTextEdit()
-        self._detail_panel.setReadOnly(True)
-        self._detail_panel.setFont(QFont("Courier New", 9))
-        self._detail_panel.setPlaceholderText("Select a log row to see full details…")
-        self._detail_panel.setMaximumHeight(180)
+        self._detail_panel = DetailPanel()
         splitter.addWidget(self._detail_panel)
 
         splitter.setStretchFactor(0, 3)
@@ -332,39 +220,6 @@ class MainWindow(QMainWindow):
         # Connect scrollbar for auto-scroll
         self.table_view.verticalScrollBar().valueChanged.connect(self._on_scroll)
 
-    def _setup_status_bar(self):
-        """Feature 1: Status bar setup."""
-        sb = self.statusBar()
-
-        self._status_connection = QLabel("● Listening")
-        self._status_connection.setStyleSheet("color: #f39c12; padding: 0 8px;")
-        sb.addPermanentWidget(self._status_connection)
-
-        sb.addPermanentWidget(self._make_separator())
-
-        self._status_total = QLabel("Total: 0")
-        sb.addPermanentWidget(self._status_total)
-
-        sb.addPermanentWidget(self._make_separator())
-
-        self._status_shown = QLabel("Shown: 0")
-        sb.addPermanentWidget(self._status_shown)
-
-        sb.addPermanentWidget(self._make_separator())
-
-        self._status_rate = QLabel("0 msg/s")
-        sb.addPermanentWidget(self._status_rate)
-
-        sb.addPermanentWidget(self._make_separator())
-
-        self._status_levels = QLabel("")
-        sb.addPermanentWidget(self._status_levels)
-
-    @staticmethod
-    def _make_separator() -> QLabel:
-        sep = QLabel("|")
-        sep.setStyleSheet("color: #aaa; padding: 0 4px;")
-        return sep
 
     # ------------------------------------------------------------------
     # Slots
@@ -382,15 +237,15 @@ class MainWindow(QMainWindow):
     def toggle_pause(self, paused: bool):
         self.is_paused = paused
         if paused:
-            self.action_pause.setIcon(
+            self.toolbar_builder.action_pause.setIcon(
                 self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
             )
-            self.action_pause.setText("Resume")
+            self.toolbar_builder.action_pause.setText("Resume")
         else:
-            self.action_pause.setIcon(
+            self.toolbar_builder.action_pause.setIcon(
                 self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPause)
             )
-            self.action_pause.setText("Pause")
+            self.toolbar_builder.action_pause.setText("Pause")
             if self.pending_logs:
                 self.model.add_logs(self.pending_logs)
                 self.pending_logs.clear()
@@ -409,15 +264,13 @@ class MainWindow(QMainWindow):
     @Slot(str)
     def _on_client_connected(self, addr: str):
         self._connected_clients += 1
-        self._status_connection.setText(f"● Connected ({addr})")
-        self._status_connection.setStyleSheet("color: #27ae60; padding: 0 8px;")
+        self.status_bar.set_client_connected(addr)
 
     @Slot(str)
     def _on_client_disconnected(self, addr: str):
         self._connected_clients = max(0, self._connected_clients - 1)
         if self._connected_clients == 0:
-            self._status_connection.setText("● Listening")
-            self._status_connection.setStyleSheet("color: #f39c12; padding: 0 8px;")
+            self.status_bar.set_client_disconnected()
 
     def _on_scroll(self, value: int):
         scrollbar = self.table_view.verticalScrollBar()
@@ -432,39 +285,7 @@ class MainWindow(QMainWindow):
     def _on_row_selected(self, current, previous):
         row = current.row()
         entry = self.model.get_entry_at_row(row)
-        if entry:
-            if not entry.level and not entry.timestamp:
-                self._detail_panel.setPlainText(entry.raw)
-                return
-
-            # Pretty-print raw JSON if applicable
-            pretty_raw = entry.raw
-            if entry.raw.strip().startswith("{"):
-                try:
-                    import json
-                    parsed_json = json.loads(entry.raw)
-                    pretty_raw = json.dumps(parsed_json, indent=4)
-                except Exception:
-                    pass
-
-            details = []
-            if entry.timestamp:
-                details.append(f"Timestamp: {entry.timestamp}")
-            if entry.level:
-                details.append(f"Level:     {entry.level}")
-            if entry.message:
-                indented_msg = entry.message.replace("\n", "\n           ")
-                details.append(f"Message:   {indented_msg}")
-
-            details.append("\n" + "-" * 60 + "\nRaw Log:\n" + pretty_raw)
-            self._detail_panel.setPlainText("\n".join(details))
-        else:
-            self._detail_panel.clear()
-
-    # Feature 8: Sorting
-    def _on_header_clicked(self, col: int):
-        # Toggle sort order if same column, else default ascending
-        pass  # Handled automatically by setSortingEnabled + model.sort()
+        self._detail_panel.update_details(entry)
 
     # Feature 14: Relative time
     def _on_relative_time_toggled(self, checked: bool):
@@ -477,25 +298,17 @@ class MainWindow(QMainWindow):
     def _update_status(self):
         total = len(self.model.get_all_logs())
         shown = self.model.get_filtered_count()
-        self._status_total.setText(f"Total: {total:,}")
-        self._status_shown.setText(f"Shown: {shown:,}")
+        self.status_bar.update_status(total, shown)
 
     def _update_rate_display(self):
         rate = self._log_rate_counter
         self._log_rate_counter = 0
-        self._status_rate.setText(f"{rate} msg/s")
+        self.status_bar.update_rate_display(rate)
 
     @Slot(dict)
     def _update_level_counts(self, counts: dict):
         """Feature 6: Update level badges in status bar."""
-        parts = []
-        colors = {"ERROR": "#e74c3c", "CRITICAL": "#8e44ad", "WARNING": "#e67e22", "DEBUG": "#7f8c8d"}
-        for lvl in ["ERROR", "CRITICAL", "WARNING"]:
-            n = counts.get(lvl, 0)
-            if n:
-                c = colors.get(lvl, "#888")
-                parts.append(f'<span style="color:{c};">{lvl}:{n}</span>')
-        self._status_levels.setText("  ".join(parts))
+        self.status_bar.update_level_counts(counts)
         self._update_status()
 
     # ------------------------------------------------------------------
@@ -558,20 +371,6 @@ class MainWindow(QMainWindow):
             QApplication.clipboard().setText("\n".join(lines))
             self.statusBar().showMessage(f"Copied {len(lines)} row(s) to clipboard", 2000)
 
-    def _show_context_menu(self, pos):
-        menu = QMenu(self)
-        
-        action_copy_raw = QAction("Copy Selected Logs", self)
-        action_copy_raw.setShortcut(QKeySequence("Ctrl+C"))
-        action_copy_raw.triggered.connect(self._copy_selected_rows)
-        menu.addAction(action_copy_raw)
-        
-        action_copy_msg = QAction("Copy Message Only", self)
-        action_copy_msg.triggered.connect(self._copy_selected_messages)
-        menu.addAction(action_copy_msg)
-        
-        menu.exec(self.table_view.viewport().mapToGlobal(pos))
-
     def _copy_selected_messages(self):
         selected = self.table_view.selectedIndexes()
         if not selected:
@@ -589,15 +388,6 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Feature 9: Font size (Ctrl + Scroll)
     # ------------------------------------------------------------------
-
-    def eventFilter(self, obj, event):
-        if obj is self.table_view.viewport():
-            if event.type() == QEvent.Type.Wheel:
-                if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-                    delta = event.angleDelta().y()
-                    self._zoom_font(1 if delta > 0 else -1)
-                    return True
-        return super().eventFilter(obj, event)
 
     def _zoom_font(self, delta: int):
         self._table_font_size = max(6, min(24, self._table_font_size + delta))

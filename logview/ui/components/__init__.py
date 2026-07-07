@@ -1,3 +1,4 @@
+from logview.ui.components.detail_panel import DetailPanel
 from PySide6.QtWidgets import (QWidget, QHBoxLayout, QLineEdit, QComboBox,
                                  QCheckBox, QLabel, QDateTimeEdit, QFrame)
 from PySide6.QtCore import Signal, QDateTime, Qt
