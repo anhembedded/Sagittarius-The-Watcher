@@ -5,9 +5,10 @@ from PySide6.QtGui import QFont, QKeySequence, QAction
 class LogTableView(QTableView):
     """Custom TableView for Logs."""
 
-    def __init__(self, main_window, parent=None):
+    def __init__(self, log_tab, parent=None):
         super().__init__(parent)
-        self.main_window = main_window
+        self.log_tab = log_tab
+        self.main_window = log_tab.main_window
 
         self.setAlternatingRowColors(True)
         self.horizontalHeader().setStretchLastSection(True)

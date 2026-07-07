@@ -139,7 +139,7 @@ class LogTab(QWidget):
             self.pending_logs.extend(logs)
         else:
             self.model.add_logs(logs)
-            self.main_window._update_status()
+        self.main_window._update_status()
 
         # Feature 3: Real-time Notification Alerts
         if self.main_window.tray_icon:

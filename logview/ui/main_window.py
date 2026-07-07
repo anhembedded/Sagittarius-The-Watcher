@@ -245,7 +245,8 @@ class MainWindow(QMainWindow):
         if tab:
             total = len(tab.model.get_all_logs())
             shown = tab.model.get_filtered_count()
-            self.status_bar.update_status(total, shown)
+            pending = len(tab.pending_logs)
+            self.status_bar.update_status(total, shown, pending)
 
     def _update_rate_display(self):
         rate = 0

@@ -85,3 +85,29 @@ def test_log_parser_json_fallback_invalid_json():
     assert entry.level is None
     assert entry.message == log_line
     assert entry.raw == log_line
+
+def test_default_config_matches_generator_logs():
+    from unittest.mock import patch
+    import argparse
+    from logview.config import get_config
+    from logview.log_parser import LogParser
+    from datetime import datetime
+    
+    with patch("logview.config.parse_args") as mock_parse_args:
+        mock_parse_args.return_value = argparse.Namespace(host=None, port=None, listen_stdin=False, tail_file=None)
+        config = get_config()
+        
+    pattern = config["log_format"]["pattern"]
+    parser = LogParser(pattern)
+    
+    levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+    msg = "User login successful"
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+    
+    for lvl in levels:
+        log_line = f"[{ts}] [{lvl}] {msg}\n"
+        entry = parser.parse(log_line)
+        
+        assert entry.timestamp == ts
+        assert entry.level == lvl
+        assert entry.message == msg

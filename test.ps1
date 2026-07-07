@@ -26,6 +26,9 @@ Write-Host "Starting Sagittarius Log Viewer..." -ForegroundColor Green
 Write-Host "Logs from the generator will start showing up immediately." -ForegroundColor Green
 Write-Host "Closing the Log Viewer window will automatically stop the dummy generator." -ForegroundColor Yellow
 
+# Suppress Qt Wayland textinput warning logs in console
+$env:QT_LOGGING_RULES = "qt.qpa.wayland.textinput=false"
+
 # Run the Log Viewer in the foreground
 & $VenvPython -m logview --port 9999
 

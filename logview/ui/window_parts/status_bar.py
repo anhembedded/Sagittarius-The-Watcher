@@ -23,6 +23,11 @@ class LogStatusBar(QStatusBar):
 
         self.addPermanentWidget(self._make_separator())
 
+        self._status_pending = QLabel("Pending Buffer: 0")
+        self.addPermanentWidget(self._status_pending)
+
+        self.addPermanentWidget(self._make_separator())
+
         self._status_rate = QLabel("0 msg/s")
         self.addPermanentWidget(self._status_rate)
 
@@ -37,9 +42,10 @@ class LogStatusBar(QStatusBar):
         sep.setStyleSheet("color: #aaa; padding: 0 4px;")
         return sep
 
-    def update_status(self, total: int, shown: int):
+    def update_status(self, total: int, shown: int, pending: int = 0):
         self._status_total.setText(f"Total: {total:,}")
         self._status_shown.setText(f"Shown: {shown:,}")
+        self._status_pending.setText(f"Pending Buffer: {pending:,}")
 
     def update_rate_display(self, rate: int):
         self._status_rate.setText(f"{rate} msg/s")
