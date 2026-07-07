@@ -34,6 +34,10 @@ class DetailPanel(QTextEdit):
                 details.append(f"Timestamp: {entry.timestamp}")
             if entry.level:
                 details.append(f"Level:     {entry.level}")
+            if entry.module:
+                details.append(f"Module:    {entry.module}")
+            if entry.submodule:
+                details.append(f"Submodule: {entry.submodule}")
             if entry.message:
                 indented_msg = entry.message.replace("\n", "\n           ")
                 details.append(f"Message:   {indented_msg}")

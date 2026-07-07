@@ -12,7 +12,9 @@ from logview.controllers.filter_engine import LogFilterEngine
 COL_BOOKMARK = 0
 COL_TIMESTAMP = 1
 COL_LEVEL = 2
-COL_MESSAGE = 3
+COL_MODULE = 3
+COL_SUBMODULE = 4
+COL_MESSAGE = 5
 
 
 def _parse_color(hex_str: str) -> Optional[QColor]:
@@ -107,7 +109,7 @@ class LogModel(QAbstractTableModel):
         return len(self._filtered_logs)
 
     def columnCount(self, parent=QModelIndex()) -> int:
-        return 4  # Bookmark, Timestamp, Level, Message
+        return 6  # Bookmark, Timestamp, Level, Module, Submodule, Message
 
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         if not index.isValid():
@@ -128,6 +130,10 @@ class LogModel(QAbstractTableModel):
                 return log.timestamp or ""
             elif col == COL_LEVEL:
                 return log.level or ""
+            elif col == COL_MODULE:
+                return log.module or ""
+            elif col == COL_SUBMODULE:
+                return log.submodule or ""
             elif col == COL_MESSAGE:
                 # Show only first line in the table cell; full raw shown in detail panel
                 return (log.message or log.raw).split("\n")[0]
@@ -172,6 +178,10 @@ class LogModel(QAbstractTableModel):
                 return "Timestamp"
             elif section == COL_LEVEL:
                 return "Level"
+            elif section == COL_MODULE:
+                return "Module"
+            elif section == COL_SUBMODULE:
+                return "Submodule"
             elif section == COL_MESSAGE:
                 return "Message"
         return None
@@ -365,10 +375,10 @@ class LogModel(QAbstractTableModel):
     # Filtering
     # ------------------------------------------------------------------
 
-    def set_filter(self, text: str, level: str, use_regex: bool, bookmarks_only: bool = False):
+    def set_filter(self, text: str, levels: List[str], use_regex: bool, bookmarks_only: bool = False):
         """Updates the text/level filter and re-evaluates all logs."""
         self._filter_engine.set_text_filter(text, use_regex)
-        self._filter_engine.set_level_filter(level)
+        self._filter_engine.set_level_filter(levels)
         self._bookmarks_only = bookmarks_only
         self._apply_filter()
 

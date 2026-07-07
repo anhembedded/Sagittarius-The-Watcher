@@ -7,7 +7,7 @@ from PySide6.QtCore import Signal, QDateTime, Qt
 class FilterPanel(QWidget):
     """Panel containing text/level filter controls."""
 
-    filter_changed = Signal(str, str, bool, bool)  # text, level, regex, bookmarks_only
+    filter_changed = Signal(str, list, bool, bool)  # text, levels, regex, bookmarks_only
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -18,31 +18,35 @@ class FilterPanel(QWidget):
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Filter logs...")
 
-        self.level_combo = QComboBox()
-        self.level_combo.addItems(["ALL", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
-
         self.regex_checkbox = QCheckBox("Regex")
         self.bookmark_checkbox = QCheckBox("Show Bookmarks Only")
 
         layout.addWidget(QLabel("Search:"))
         layout.addWidget(self.search_input)
         layout.addWidget(QLabel("Level:"))
-        layout.addWidget(self.level_combo)
+
+        self.level_checkboxes = []
+        for level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+            cb = QCheckBox(level)
+            cb.setChecked(True)
+            cb.stateChanged.connect(self._on_filter_changed)
+            self.level_checkboxes.append(cb)
+            layout.addWidget(cb)
+
         layout.addWidget(self.regex_checkbox)
         layout.addWidget(self.bookmark_checkbox)
 
         # Connect signals
         self.search_input.textChanged.connect(self._on_filter_changed)
-        self.level_combo.currentTextChanged.connect(self._on_filter_changed)
         self.regex_checkbox.stateChanged.connect(self._on_filter_changed)
         self.bookmark_checkbox.stateChanged.connect(self._on_filter_changed)
 
     def _on_filter_changed(self):
         text = self.search_input.text()
-        level = self.level_combo.currentText()
+        active_levels = [cb.text() for cb in self.level_checkboxes if cb.isChecked()]
         use_regex = self.regex_checkbox.isChecked()
         bookmarks_only = self.bookmark_checkbox.isChecked()
-        self.filter_changed.emit(text, level, use_regex, bookmarks_only)
+        self.filter_changed.emit(text, active_levels, use_regex, bookmarks_only)
 
 
 class TimeRangeWidget(QWidget):

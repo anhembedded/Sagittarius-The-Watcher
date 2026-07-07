@@ -75,6 +75,8 @@ class LogTab(QWidget):
         self.table_view.setColumnWidth(0, 30)   # Bookmark
         self.table_view.setColumnWidth(1, 170)  # Timestamp
         self.table_view.setColumnWidth(2, 80)   # Level
+        self.table_view.setColumnWidth(3, 100)  # Module
+        self.table_view.setColumnWidth(4, 100)  # Submodule
 
         self.main_window._apply_table_font_to_view(self.table_view)
 
@@ -82,6 +84,8 @@ class LogTab(QWidget):
 
         # Feature 2: Detail Panel
         self._detail_panel = DetailPanel()
+        if hasattr(self.main_window, '_show_detail_panel'):
+            self._detail_panel.setVisible(self.main_window._show_detail_panel)
         splitter.addWidget(self._detail_panel)
 
         splitter.setStretchFactor(0, 3)
@@ -120,7 +124,7 @@ class LogTab(QWidget):
     def _on_find_navigate(self, direction: int):
         row = self.model.find_navigate(direction)
         if row >= 0:
-            idx = self.model.index(row, 3)
+            idx = self.model.index(row, 5)
             self.table_view.setCurrentIndex(idx)
             self.table_view.scrollTo(idx, LogTableView.ScrollHint.PositionAtCenter)
         self._find_bar.set_match_info(
