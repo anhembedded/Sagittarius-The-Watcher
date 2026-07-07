@@ -37,6 +37,9 @@ def save_session(entries: List[LogEntry], filepath: str):
         entries (List[LogEntry]): All log entries to persist.
         filepath (str): Output file path (conventionally *.lvsession).
     """
+    if not filepath.endswith('.lvsession'):
+        filepath += '.lvsession'
+
     data = {
         "version": 1,
         "saved_at": datetime.now().isoformat(),
