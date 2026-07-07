@@ -1,5 +1,6 @@
 from typing import Dict, Any, Optional
 import copy
+import json
 
 from PySide6.QtWidgets import (
     QDialog, QDialogButtonBox, QTabWidget, QWidget, QFormLayout,
@@ -306,7 +307,7 @@ def save_config_to_toml(config: Dict[str, Any], path: str):
 
     server = config.get("server", {})
     lines.append("[server]")
-    lines.append(f'host = "{server.get("host", "localhost")}"')
+    lines.append(f'host = {json.dumps(server.get("host", "localhost"), ensure_ascii=False)}')
     lines.append(f'port = {server.get("port", 9999)}')
     lines.append("")
 
@@ -316,22 +317,22 @@ def save_config_to_toml(config: Dict[str, Any], path: str):
     lines.append("")
 
     log_format = config.get("log_format", {})
-    pattern = log_format.get("pattern", "").replace("\\", "\\\\")
+    pattern = log_format.get("pattern", "")
     lines.append("[log_format]")
-    lines.append(f'pattern = "{pattern}"')
+    lines.append(f'pattern = {json.dumps(pattern, ensure_ascii=False)}')
     lines.append("")
 
     colors = config.get("colors", {})
     for level in LOG_LEVELS:
         level_colors = colors.get(level, {})
         lines.append(f"[colors.{level}]")
-        lines.append(f'bg = "{level_colors.get("bg", "")}"')
-        lines.append(f'fg = "{level_colors.get("fg", "")}"')
+        lines.append(f'bg = {json.dumps(level_colors.get("bg", ""), ensure_ascii=False)}')
+        lines.append(f'fg = {json.dumps(level_colors.get("fg", ""), ensure_ascii=False)}')
         lines.append("")
 
     theme = config.get("theme", {})
     lines.append("[theme]")
-    lines.append(f'name = "{theme.get("name", "auto")}"')
+    lines.append(f'name = {json.dumps(theme.get("name", "auto"), ensure_ascii=False)}')
     lines.append("")
 
     with open(path, "w", encoding="utf-8") as f:
