@@ -2,12 +2,12 @@ import re
 from typing import List, Dict, Any
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QSplitter
+    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QPushButton
 )
 from PySide6.QtCore import Qt, Slot, QTimer
 from PySide6.QtWidgets import QSystemTrayIcon
 
-from logview.ui.log_model import LogModel
+from logview.ui.log_model import LogModel, LogFilterProxyModel, COL_MESSAGE
 from logview.ui.log_delegate import LogDelegate
 from logview.ui.find_bar import FindBar
 from logview.ui.components import FilterPanel, TimeRangeWidget
@@ -16,6 +16,8 @@ from logview.ui.views.log_table import LogTableView
 from logview.log_parser import LogParser
 from logview.models import LogEntry
 from logview.ui.receiver_worker import ReceiverWorker
+from logview.ui.components.heatmap_widget import LogHeatmapWidget
+
 
 class LogTab(QWidget):
     def __init__(self, config: Dict[str, Any], main_window, parent=None):
@@ -27,7 +29,9 @@ class LogTab(QWidget):
         self._log_rate_counter = 0
 
         self.parser = LogParser(config.get("log_format", {}).get("pattern", ""))
-        self.model = LogModel(self, max_lines=config.get("display", {}).get("max_lines", 10000), color_config=config.get("colors", {}))
+        self.source_model = LogModel(self, max_lines=config.get("display", {}).get("max_lines", 10000), color_config=config.get("colors", {}))
+        self.model = LogFilterProxyModel(self)
+        self.model.setSourceModel(self.source_model)
         self.model.counts_changed.connect(self._on_counts_changed)
 
         self.receiver_thread = ReceiverWorker(self.config, self.parser)
@@ -63,9 +67,40 @@ class LogTab(QWidget):
         splitter = QSplitter(Qt.Orientation.Vertical)
         splitter.setChildrenCollapsible(False)
 
+        # Table View Container to place table side-by-side with Minimap Heatmap
+        table_container = QWidget()
+        table_container_layout = QHBoxLayout(table_container)
+        table_container_layout.setContentsMargins(0, 0, 0, 0)
+        table_container_layout.setSpacing(2)
+
         # Table View
         self.table_view = LogTableView(self)
         self.table_view.setModel(self.model)
+        table_container_layout.addWidget(self.table_view)
+
+        # Scrollbar minimap / heatmap widget
+        self.heatmap_widget = LogHeatmapWidget(self.model, self.table_view, self)
+        table_container_layout.addWidget(self.heatmap_widget)
+
+        # Floating "Resume Tail" button
+        self.resume_button = QPushButton("↓ Resume Tailing", self.table_view)
+        self.resume_button.setObjectName("resume_tail_button")
+        self.resume_button.setVisible(False)
+        self.resume_button.clicked.connect(self._on_resume_clicked)
+        self.resume_button.setStyleSheet("""
+            QPushButton#resume_tail_button {
+                background-color: rgba(38, 162, 105, 210); /* Sleek green matching INFO */
+                color: white;
+                border: none;
+                border-radius: 12px;
+                padding: 6px 12px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton#resume_tail_button:hover {
+                background-color: rgba(38, 162, 105, 255);
+            }
+        """)
 
         # Setup log delegate for the entire table view to handle custom row colors overriding themes
         self._delegate = LogDelegate(self.table_view)
@@ -73,14 +108,15 @@ class LogTab(QWidget):
 
         # Column widths
         self.table_view.setColumnWidth(0, 30)   # Bookmark
-        self.table_view.setColumnWidth(1, 170)  # Timestamp
-        self.table_view.setColumnWidth(2, 80)   # Level
-        self.table_view.setColumnWidth(3, 100)  # Module
-        self.table_view.setColumnWidth(4, 100)  # Submodule
+        self.table_view.setColumnWidth(1, 60)   # Index
+        self.table_view.setColumnWidth(2, 170)  # Timestamp
+        self.table_view.setColumnWidth(3, 80)   # Level
+        self.table_view.setColumnWidth(4, 100)  # Module
+        self.table_view.setColumnWidth(5, 100)  # Submodule
 
         self.main_window._apply_table_font_to_view(self.table_view)
 
-        splitter.addWidget(self.table_view)
+        splitter.addWidget(table_container)
 
         # Feature 2: Detail Panel
         self._detail_panel = DetailPanel()
@@ -106,6 +142,32 @@ class LogTab(QWidget):
     def stop(self):
         self.receiver_thread.stop()
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._reposition_resume_button()
+
+    def _reposition_resume_button(self):
+        if hasattr(self, "resume_button") and self.resume_button.isVisible():
+            btn_w = self.resume_button.width()
+            btn_h = self.resume_button.height()
+            view_w = self.table_view.width()
+            view_h = self.table_view.height()
+
+            # Align with bottom right corner, above scrollbars if visible
+            scrollbar_h = self.table_view.horizontalScrollBar().height() if self.table_view.horizontalScrollBar().isVisible() else 0
+            scrollbar_w = self.table_view.verticalScrollBar().width() if self.table_view.verticalScrollBar().isVisible() else 0
+
+            x = view_w - btn_w - 20 - scrollbar_w
+            y = view_h - btn_h - 20 - scrollbar_h
+            self.resume_button.move(x, y)
+
+    @Slot()
+    def _on_resume_clicked(self):
+        self.auto_scroll = True
+        self.table_view.scrollToBottom()
+        if hasattr(self, "resume_button"):
+            self.resume_button.setVisible(False)
+
     @Slot(dict)
     def _on_counts_changed(self, counts: dict):
         if self.main_window.tab_widget.currentWidget() == self:
@@ -124,7 +186,7 @@ class LogTab(QWidget):
     def _on_find_navigate(self, direction: int):
         row = self.model.find_navigate(direction)
         if row >= 0:
-            idx = self.model.index(row, 5)
+            idx = self.model.index(row, COL_MESSAGE)
             self.table_view.setCurrentIndex(idx)
             self.table_view.scrollTo(idx, LogTableView.ScrollHint.PositionAtCenter)
         self._find_bar.set_match_info(
@@ -176,6 +238,11 @@ class LogTab(QWidget):
             # "Scroll Lock: ON" means auto_scroll is disabled (user is scrolling up).
             # "Scroll Lock: OFF" means auto_scroll is active.
             self.main_window.status_bar.set_scroll_lock(not self.auto_scroll)
+
+        # Show/hide resume tail button
+        if hasattr(self, "resume_button"):
+            self.resume_button.setVisible(not self.auto_scroll)
+            self._reposition_resume_button()
 
     def check_autoscroll(self):
         if self.auto_scroll and not self.is_paused:

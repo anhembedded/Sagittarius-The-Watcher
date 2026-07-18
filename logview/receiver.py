@@ -33,6 +33,11 @@ class FileTailReceiver:
             except asyncio.CancelledError:
                 pass
 
+    async def _put_entry(self, entry):
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self.parser.parse_fields, entry)
+        await self.queue.put(entry)
+
     async def _tail_file(self):
         """Tails the file and pushes to queue using MultiLineBuffer for multi-line support."""
         loop = asyncio.get_running_loop()
@@ -59,19 +64,19 @@ class FileTailReceiver:
                     if idle_time >= 0.2:  # Flush after 200ms of inactivity
                         entry = buf.flush()
                         if entry:
-                            await self.queue.put(entry)
+                            await self._put_entry(entry)
                         idle_time = 0.0
                     continue
 
                 idle_time = 0.0
                 entry = buf.feed(line)
                 if entry:
-                    await self.queue.put(entry)
+                    await self._put_entry(entry)
 
         # Flush remaining
         final = buf.flush()
         if final:
-            await self.queue.put(final)
+            await self._put_entry(final)
 
 
 class TCPServerReceiver:
@@ -120,6 +125,11 @@ class TCPServerReceiver:
             self.server.close()
             await self.server.wait_closed()
 
+    async def _put_entry(self, entry):
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self.parser.parse_fields, entry)
+        await self.queue.put(entry)
+
     async def _read_stdin(self):
         """Reads lines from stdin using MultiLineBuffer."""
         loop = asyncio.get_running_loop()
@@ -135,10 +145,10 @@ class TCPServerReceiver:
                 break
             entry = buf.feed(line)
             if entry:
-                await self.queue.put(entry)
+                await self._put_entry(entry)
         final = buf.flush()
         if final:
-            await self.queue.put(final)
+            await self._put_entry(final)
 
     async def handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         """Handles an incoming client connection.
@@ -167,12 +177,12 @@ class TCPServerReceiver:
                     line = line_bytes.decode('utf-8', errors='replace')
                     entry = buf.feed(line)
                     if entry:
-                        await self.queue.put(entry)
+                        await self._put_entry(entry)
                 except asyncio.TimeoutError:
                     # Inactivity timeout reached, flush pending log
                     entry = buf.flush()
                     if entry:
-                        await self.queue.put(entry)
+                        await self._put_entry(entry)
         except asyncio.CancelledError:
             pass
         except Exception:
@@ -181,7 +191,7 @@ class TCPServerReceiver:
             # Flush any buffered multi-line entry before disconnecting
             final = buf.flush()
             if final:
-                await self.queue.put(final)
+                await self._put_entry(final)
 
             if self.on_client_disconnected:
                 self.on_client_disconnected(addr_str)

@@ -77,7 +77,7 @@ def test_filtering(qtbot, app_config, monkeypatch):
             break
 
     assert window.tab_widget.currentWidget().model.rowCount() == 1
-    assert window.tab_widget.currentWidget().model.data(window.tab_widget.currentWidget().model.index(0, 2)) == "ERROR"
+    assert window.tab_widget.currentWidget().model.data(window.tab_widget.currentWidget().model.index(0, 3)) == "ERROR"
 
 def test_view_toggles(qtbot, app_config, monkeypatch):
     monkeypatch.setattr("logview.ui.components.log_tab.ReceiverWorker.start", lambda self: None)

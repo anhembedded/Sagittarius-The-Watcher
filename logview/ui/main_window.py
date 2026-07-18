@@ -18,7 +18,7 @@ from logview.ui.settings_dialog import SettingsDialog, save_config_to_toml
 from logview.log_parser import LogParser
 from logview.export import export_logs, save_session, load_session
 from logview.models import LogEntry
-from logview.config import DEFAULT_CONFIG_PATH
+import logview.config
 from logview.ui.receiver_worker import ReceiverWorker
 from logview.ui.charts_panel import LiveStatsPanel
 from logview.ui.window_parts.menu_builder import MenuBuilder
@@ -98,7 +98,7 @@ class MainWindow(QMainWindow):
         if "theme" not in self.config:
             self.config["theme"] = {}
         self.config["theme"]["name"] = name
-        save_config_to_toml(self.config, DEFAULT_CONFIG_PATH)
+        save_config_to_toml(self.config, logview.config.DEFAULT_CONFIG_PATH)
         self._apply_theme()
 
         if hasattr(self, "menu_builder") and hasattr(self.menu_builder, "theme_group"):
@@ -261,7 +261,7 @@ class MainWindow(QMainWindow):
         tab = self.tab_widget.currentWidget()
         if tab:
             total = len(tab.model.get_all_logs())
-            shown = tab.model.get_filtered_count()
+            shown = tab.model.rowCount()
             pending = len(tab.pending_logs)
             self.status_bar.update_status(total, shown, pending)
 
@@ -464,7 +464,7 @@ class MainWindow(QMainWindow):
 
         # Save to TOML
         try:
-            save_config_to_toml(new_config, DEFAULT_CONFIG_PATH)
+            save_config_to_toml(new_config, logview.config.DEFAULT_CONFIG_PATH)
         except Exception as e:
             QMessageBox.warning(self, "Save Failed", f"Could not save settings:\n{e}")
 

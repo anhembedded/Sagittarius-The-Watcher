@@ -1,8 +1,8 @@
 import re
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import List, Optional, Any, Dict
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QTimer, Signal
+from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QTimer, Signal, QSortFilterProxyModel
 from PySide6.QtGui import QColor, QBrush
 
 from logview.models import LogEntry
@@ -10,11 +10,12 @@ from logview.controllers.filter_engine import LogFilterEngine
 
 # Constants for column indices
 COL_BOOKMARK = 0
-COL_TIMESTAMP = 1
-COL_LEVEL = 2
-COL_MODULE = 3
-COL_SUBMODULE = 4
-COL_MESSAGE = 5
+COL_INDEX = 1
+COL_TIMESTAMP = 2
+COL_LEVEL = 3
+COL_MODULE = 4
+COL_SUBMODULE = 5
+COL_MESSAGE = 6
 
 
 def _parse_color(hex_str: str) -> Optional[QColor]:
@@ -45,12 +46,12 @@ def _format_relative(dt: datetime) -> str:
 
 
 class LogModel(QAbstractTableModel):
-    """Model for managing and displaying log entries in a QTableView.
-    # MVC Pattern: Serves as the Model providing data to the View (QTableView).
+    """Model for managing and storing log entries.
+    # MVC Pattern: Serves as the pure source Model.
     """
 
     # Emitted whenever level counts change (add / clear)
-    counts_changed = Signal(dict)  # Feature 6
+    counts_changed = Signal(dict)
 
     def __init__(self, parent=None, max_lines: int = 10000, color_config: Dict = None):
         super().__init__(parent)
@@ -64,52 +65,28 @@ class LogModel(QAbstractTableModel):
                 bg = _parse_color(colors.get("bg", ""))
                 fg = _parse_color(colors.get("fg", ""))
                 self._level_colors[level.upper()] = (bg, fg)
-        self._filtered_logs: List[LogEntry] = []
 
         self._bookmarks: set[int] = set()
-
-        # --- Filtering state ---
-        self._filter_engine = LogFilterEngine()
-        self._bookmarks_only = False
-
-        # --- Sorting state (Feature 8) ---
-        self._sort_column: int = -1
-        self._sort_order: Qt.SortOrder = Qt.SortOrder.AscendingOrder
-
-        # --- Level counters (Feature 6) ---
         self._level_counts: Dict[str, int] = {}
 
         # --- Relative time (Feature 14) ---
         self._show_relative_time: bool = False
         self._relative_timer = QTimer(self)
         self._relative_timer.timeout.connect(self._refresh_timestamps)
-        # Timer is started/stopped in toggle_relative_time()
-
-        # --- Highlight / find term (Feature 3) ---
-        self._highlight_term: str = ""
-        self._highlight_regex: bool = False
-
-        # --- Find state ---
-        self._find_match_rows: List[int] = []   # indices into _filtered_logs
-        self._find_current_idx: int = -1
 
         # Animation timer
         self._animation_timer = QTimer(self)
         self._animation_timer.timeout.connect(self._step_animations)
-        self._animation_timer.start(50)  # 50ms step
+        self._animation_timer.start(50)
 
         # We'll store a "fade" value for new rows. 255 = fully highlighted, 0 = normal.
         self._new_row_fades = {}
 
-    # ------------------------------------------------------------------
-    # QAbstractTableModel interface
-    # ------------------------------------------------------------------
-
     def rowCount(self, parent=QModelIndex()) -> int:
-        return len(self._filtered_logs)
+        return len(self._all_logs)
 
     def columnCount(self, parent=QModelIndex()) -> int:
-        return 6  # Bookmark, Timestamp, Level, Module, Submodule, Message
+        return 7  # Bookmark, Index, Timestamp, Level, Module, Submodule, Message
 
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         if not index.isValid():
@@ -118,13 +95,15 @@ class LogModel(QAbstractTableModel):
         row = index.row()
         col = index.column()
 
-        if row >= len(self._filtered_logs):
+        if row >= len(self._all_logs):
             return None
 
-        log = self._filtered_logs[row]
+        log = self._all_logs[row]
 
         if role == Qt.ItemDataRole.DisplayRole:
-            if col == COL_TIMESTAMP:
+            if col == COL_INDEX:
+                return log.index or ""
+            elif col == COL_TIMESTAMP:
                 if self._show_relative_time and log.parsed_dt:
                     return _format_relative(log.parsed_dt)
                 return log.timestamp or ""
@@ -135,7 +114,6 @@ class LogModel(QAbstractTableModel):
             elif col == COL_SUBMODULE:
                 return log.submodule or ""
             elif col == COL_MESSAGE:
-                # Show only first line in the table cell; full raw shown in detail panel
                 return (log.message or log.raw).split("\n")[0]
 
         elif role == Qt.ItemDataRole.CheckStateRole:
@@ -143,12 +121,10 @@ class LogModel(QAbstractTableModel):
                 return Qt.CheckState.Checked if log.id in self._bookmarks else Qt.CheckState.Unchecked
 
         elif role == Qt.ItemDataRole.BackgroundRole:
-            # Animation highlight takes priority
             fade = self._new_row_fades.get(log.id, 0)
             if fade > 0:
                 return QBrush(QColor(100, 150, 255, fade))
 
-            # Configured level bg color
             if log.level:
                 lvl = log.level.upper()
                 colors = self._level_colors.get(lvl)
@@ -163,7 +139,6 @@ class LogModel(QAbstractTableModel):
                     return QBrush(colors[1])
 
         elif role == Qt.ItemDataRole.ToolTipRole:
-            # Show full raw text in tooltip (useful for multi-line logs)
             if col == COL_MESSAGE:
                 return log.raw
 
@@ -174,6 +149,8 @@ class LogModel(QAbstractTableModel):
         if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
             if section == COL_BOOKMARK:
                 return "B"
+            elif section == COL_INDEX:
+                return "Index"
             elif section == COL_TIMESTAMP:
                 return "Timestamp"
             elif section == COL_LEVEL:
@@ -201,7 +178,7 @@ class LogModel(QAbstractTableModel):
             return False
 
         if index.column() == COL_BOOKMARK and role == Qt.ItemDataRole.CheckStateRole:
-            log = self._filtered_logs[index.row()]
+            log = self._all_logs[index.row()]
             if value == Qt.CheckState.Checked.value:
                 self._bookmarks.add(log.id)
             else:
@@ -212,113 +189,41 @@ class LogModel(QAbstractTableModel):
         return False
 
     def toggle_bookmark(self, row: int):
-        if 0 <= row < len(self._filtered_logs):
-            log = self._filtered_logs[row]
+        if 0 <= row < len(self._all_logs):
+            log = self._all_logs[row]
             if log.id in self._bookmarks:
                 self._bookmarks.discard(log.id)
-                new_state = Qt.CheckState.Unchecked.value
             else:
                 self._bookmarks.add(log.id)
-                new_state = Qt.CheckState.Checked.value
             idx = self.index(row, COL_BOOKMARK)
             self.dataChanged.emit(idx, idx, [Qt.ItemDataRole.CheckStateRole])
 
-    def get_bookmark_row(self, current_row: int, direction: int) -> int:
-        """Find the next or previous bookmarked row.
-        Wraps around if reaching the end.
-        """
-        if not self._bookmarks or not self._filtered_logs:
-            return -1
-
-        n = len(self._filtered_logs)
-        row = current_row
-        for _ in range(n):
-            row = (row + direction) % n
-            log = self._filtered_logs[row]
-            if log.id in self._bookmarks:
-                return row
-        return -1
-
-    # ------------------------------------------------------------------
-    # Feature 8: Column sorting
-    # ------------------------------------------------------------------
-
-    def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder):
-        """Sort the filtered logs by the given column."""
-        self._sort_column = column
-        self._sort_order = order
-        self._apply_sort()
-
-    def _apply_sort(self):
-        if self._sort_column < 0:
-            return
-
-        reverse = self._sort_order == Qt.SortOrder.DescendingOrder
-
-        def key_fn(log: LogEntry):
-            if self._sort_column == COL_TIMESTAMP:
-                return log.parsed_dt or datetime.min
-            elif self._sort_column == COL_LEVEL:
-                return log.level or ""
-            elif self._sort_column == COL_MESSAGE:
-                return (log.message or log.raw).lower()
-            return ""
-
-        self.layoutAboutToBeChanged.emit()
-        try:
-            self._filtered_logs.sort(key=key_fn, reverse=reverse)
-        except Exception:
-            pass
-        self.layoutChanged.emit()
-
-    # ------------------------------------------------------------------
-    # Log management
-    # ------------------------------------------------------------------
-
     def add_logs(self, logs: List[LogEntry]):
-        """Adds new logs to the model, applying filters and setting up animations."""
+        """Adds new logs to the model and updates counters."""
         if not logs:
             return
 
-        new_filtered = []
+        first_new_row = len(self._all_logs)
+        self.beginInsertRows(QModelIndex(), first_new_row, first_new_row + len(logs) - 1)
         for log in logs:
             self._all_logs.append(log)
 
-            # Update level counters (Feature 6)
             if log.level:
                 lvl = log.level.upper()
                 self._level_counts[lvl] = self._level_counts.get(lvl, 0) + 1
 
-            # Start animation
             if log.is_new:
                 self._new_row_fades[log.id] = 100
-
-            if self._filter_engine.matches(log):
-                new_filtered.append(log)
-
-        if new_filtered:
-            if self._sort_column >= 0:
-                # Sorted mode: full re-sort
-                first_new_row = len(self._filtered_logs)
-                self.beginInsertRows(QModelIndex(), first_new_row,
-                                     first_new_row + len(new_filtered) - 1)
-                self._filtered_logs.extend(new_filtered)
-                self.endInsertRows()
-                self._apply_sort()
-            else:
-                first_new_row = len(self._filtered_logs)
-                self.beginInsertRows(QModelIndex(), first_new_row,
-                                     first_new_row + len(new_filtered) - 1)
-                self._filtered_logs.extend(new_filtered)
-                self.endInsertRows()
+        self.endInsertRows()
 
         # Enforce max_lines bounded memory limit
         overflow = len(self._all_logs) - self._max_lines
         if overflow > 0:
+            self.beginRemoveRows(QModelIndex(), 0, overflow - 1)
             removed_logs = self._all_logs[:overflow]
             self._all_logs = self._all_logs[overflow:]
+            self.endRemoveRows()
 
-            # Remove specific counts for old logs
             for log in removed_logs:
                 if log.level:
                     lvl = log.level.upper()
@@ -328,30 +233,9 @@ class LogModel(QAbstractTableModel):
                             del self._level_counts[lvl]
 
             removed_ids = {log.id for log in removed_logs}
-
-            # Also clear from dictionaries
             self._bookmarks.difference_update(removed_ids)
             for rid in removed_ids:
                 self._new_row_fades.pop(rid, None)
-
-            # Check if any filtered logs are affected
-            filtered_overflow = sum(1 for log in self._filtered_logs if log.id in removed_ids)
-
-            if filtered_overflow > 0:
-                # Since the items might be scattered due to sorting or not at the exact top,
-                # if sorted, we must use beginResetModel.
-                if self._sort_column >= 0:
-                    self.beginResetModel()
-                    self._filtered_logs = [log for log in self._filtered_logs if log.id not in removed_ids]
-                    self.endResetModel()
-                else:
-                    # If not sorted, the oldest filtered logs are exactly at the top.
-                    self.beginRemoveRows(QModelIndex(), 0, filtered_overflow - 1)
-                    self._filtered_logs = self._filtered_logs[filtered_overflow:]
-                    self.endRemoveRows()
-
-                if self._highlight_term:
-                    self._rebuild_find_matches()
 
         self.counts_changed.emit(dict(self._level_counts))
 
@@ -362,135 +246,29 @@ class LogModel(QAbstractTableModel):
         """Clears all logs."""
         self.beginResetModel()
         self._all_logs.clear()
-        self._filtered_logs.clear()
         self._bookmarks.clear()
         self._new_row_fades.clear()
         self._level_counts.clear()
-        self._find_match_rows.clear()
-        self._find_current_idx = -1
         self.endResetModel()
         self.counts_changed.emit({})
-
-    # ------------------------------------------------------------------
-    # Filtering
-    # ------------------------------------------------------------------
-
-    def set_filter(self, text: str, levels: List[str], use_regex: bool, bookmarks_only: bool = False):
-        """Updates the text/level filter and re-evaluates all logs."""
-        self._filter_engine.set_text_filter(text, use_regex)
-        self._filter_engine.set_level_filter(levels)
-        self._bookmarks_only = bookmarks_only
-        self._apply_filter()
-
-    def set_time_range(self, from_dt: Optional[datetime], to_dt: Optional[datetime]):
-        """Feature 7: Set a datetime range filter."""
-        self._filter_engine.set_time_range(from_dt, to_dt)
-        self._apply_filter()
-
-    def _apply_filter(self):
-        self.beginResetModel()
-        if self._bookmarks_only:
-            self._filtered_logs = [log for log in self._all_logs if log.id in self._bookmarks and self._filter_engine.matches(log)]
-        else:
-            self._filtered_logs = [log for log in self._all_logs if self._filter_engine.matches(log)]
-        self._find_match_rows.clear()
-        self._find_current_idx = -1
-        self.endResetModel()
-
-        if self._sort_column >= 0:
-            self._apply_sort()
-
-        if self._highlight_term:
-            self._rebuild_find_matches()
-
-    # ------------------------------------------------------------------
-    # Feature 3: Find / highlight
-    # ------------------------------------------------------------------
-
-    def set_highlight_term(self, term: str, use_regex: bool = False):
-        """Set the find-bar search term. Triggers a search over filtered logs."""
-        self._highlight_term = term
-        self._highlight_regex = use_regex
-        self._rebuild_find_matches()
-
-        # Refresh display
-        if self._filtered_logs:
-            self.dataChanged.emit(
-                self.index(0, COL_MESSAGE),
-                self.index(len(self._filtered_logs) - 1, COL_MESSAGE),
-            )
-
-    def _rebuild_find_matches(self):
-        """Rebuild the list of row indices that contain the highlight term."""
-        self._find_match_rows.clear()
-        self._find_current_idx = -1
-        if not self._highlight_term:
-            return
-
-        if self._highlight_regex:
-            try:
-                pattern = re.compile(self._highlight_term, re.IGNORECASE)
-                for i, log in enumerate(self._filtered_logs):
-                    if pattern.search(log.raw):
-                        self._find_match_rows.append(i)
-            except re.error:
-                # Invalid regex, ignore
-                pass
-        else:
-            term_lower = self._highlight_term.lower()
-            for i, log in enumerate(self._filtered_logs):
-                if term_lower in log.raw_lower:
-                    self._find_match_rows.append(i)
-
-    def find_navigate(self, direction: int) -> int:
-        """Move to the next/previous match row.
-
-        Args:
-            direction: +1 for next, -1 for previous.
-
-        Returns:
-            The row index of the new current match, or -1 if no matches.
-        """
-        if not self._find_match_rows:
-            return -1
-        n = len(self._find_match_rows)
-        if self._find_current_idx < 0:
-            self._find_current_idx = 0 if direction > 0 else n - 1
-        else:
-            self._find_current_idx = (self._find_current_idx + direction) % n
-        return self._find_match_rows[self._find_current_idx]
-
-    def find_match_count(self) -> int:
-        return len(self._find_match_rows)
-
-    def find_current_match(self) -> int:
-        return self._find_current_idx + 1 if self._find_current_idx >= 0 else 0
-
-    # ------------------------------------------------------------------
-    # Feature 14: Relative timestamps
-    # ------------------------------------------------------------------
 
     def toggle_relative_time(self) -> bool:
         """Toggle relative timestamp display. Returns the new state."""
         self._show_relative_time = not self._show_relative_time
         if self._show_relative_time:
-            self._relative_timer.start(10_000)  # refresh every 10s
+            self._relative_timer.start(10_000)
         else:
             self._relative_timer.stop()
         self._refresh_timestamps()
         return self._show_relative_time
 
     def _refresh_timestamps(self):
-        if self._filtered_logs:
+        if self._all_logs:
             self.dataChanged.emit(
                 self.index(0, COL_TIMESTAMP),
-                self.index(len(self._filtered_logs) - 1, COL_TIMESTAMP),
+                self.index(len(self._all_logs) - 1, COL_TIMESTAMP),
                 [Qt.ItemDataRole.DisplayRole],
             )
-
-    # ------------------------------------------------------------------
-    # Feature 6: Colors (live update from settings)
-    # ------------------------------------------------------------------
 
     def update_colors(self, color_config: Dict):
         """Live-updates the level color mapping and redraws the table."""
@@ -501,16 +279,12 @@ class LogModel(QAbstractTableModel):
                 fg = _parse_color(colors.get("fg", ""))
                 self._level_colors[level.upper()] = (bg, fg)
 
-        if self._filtered_logs:
+        if self._all_logs:
             self.dataChanged.emit(
                 self.index(0, 0),
-                self.index(len(self._filtered_logs) - 1, self.columnCount() - 1),
+                self.index(len(self._all_logs) - 1, self.columnCount() - 1),
                 [Qt.ItemDataRole.BackgroundRole, Qt.ItemDataRole.ForegroundRole],
             )
-
-    # ------------------------------------------------------------------
-    # Animation
-    # ------------------------------------------------------------------
 
     def _step_animations(self):
         """Reduces the fade level of animating rows and requests redraw."""
@@ -527,9 +301,9 @@ class LogModel(QAbstractTableModel):
             for k in keys_to_remove:
                 del self._new_row_fades[k]
 
-            if len(self._filtered_logs) > 0:
+            if len(self._all_logs) > 0:
                 active_ids = set(self._new_row_fades.keys())
-                rows_to_update = [i for i, log in enumerate(self._filtered_logs) if log.id in active_ids]
+                rows_to_update = [i for i, log in enumerate(self._all_logs) if log.id in active_ids]
 
                 if rows_to_update:
                     min_row = rows_to_update[0]
@@ -540,17 +314,272 @@ class LogModel(QAbstractTableModel):
                         [Qt.ItemDataRole.BackgroundRole]
                     )
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
     def get_all_logs(self) -> List[LogEntry]:
         return self._all_logs
 
-    def get_filtered_count(self) -> int:
-        return len(self._filtered_logs)
+    def get_entry_at_row(self, row: int) -> Optional[LogEntry]:
+        if 0 <= row < len(self._all_logs):
+            return self._all_logs[row]
+        return None
+
+
+class LogFilterProxyModel(QSortFilterProxyModel):
+    """Proxy model for high-performance sorting and filtering on the C++ native side.
+    # MVC Pattern: Serves as the Controller/Proxy between Model and View.
+    """
+    counts_changed = Signal(dict)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._filter_engine = LogFilterEngine()
+        self._bookmarks_only = False
+
+        self._highlight_term: str = ""
+        self._highlight_regex: bool = False
+        self._find_match_rows: List[int] = []
+        self._find_current_idx: int = -1
+
+        self._warning_rows: List[int] = []
+        self._error_rows: List[int] = []
+
+        # Enable dynamic filtering update as the source model changes
+        self.setDynamicSortFilter(True)
+
+        self.layoutChanged.connect(self._rebuild_heatmap_indices)
+        self.rowsInserted.connect(self._rebuild_heatmap_indices)
+        self.rowsRemoved.connect(self._rebuild_heatmap_indices)
+        self.modelReset.connect(self._rebuild_heatmap_indices)
+
+    def _rebuild_heatmap_indices(self):
+        self._warning_rows.clear()
+        self._error_rows.clear()
+        source = self.sourceModel()
+        if not source:
+            return
+        n = self.rowCount()
+        for i in range(n):
+            source_idx = self.mapToSource(self.index(i, 0))
+            if source_idx.row() < len(source._all_logs):
+                log = source._all_logs[source_idx.row()]
+                if log.level:
+                    lvl = log.level.upper()
+                    if lvl in ("ERROR", "CRITICAL"):
+                        self._error_rows.append(i)
+                    elif lvl == "WARNING":
+                        self._warning_rows.append(i)
+
+    def setSourceModel(self, model):
+        super().setSourceModel(model)
+        if model:
+            model.counts_changed.connect(self.counts_changed.emit)
+            self._rebuild_heatmap_indices()
+
+    def add_logs(self, logs: List[LogEntry]):
+        source = self.sourceModel()
+        if source:
+            source.add_logs(logs)
+
+    def clear_logs(self):
+        source = self.sourceModel()
+        if source:
+            source.clear_logs()
+
+    def get_all_logs(self) -> List[LogEntry]:
+        source = self.sourceModel()
+        if source:
+            return source.get_all_logs()
+        return []
+
+    @property
+    def _all_logs(self) -> List[LogEntry]:
+        source = self.sourceModel()
+        return source._all_logs if source else []
+
+    @property
+    def _filtered_logs(self) -> List[LogEntry]:
+        source = self.sourceModel()
+        if not source:
+            return []
+        return [source._all_logs[self.mapToSource(self.index(i, 0)).row()] for i in range(self.rowCount())]
+
+    @property
+    def _show_relative_time(self) -> bool:
+        source = self.sourceModel()
+        return source._show_relative_time if source else False
+
+    def toggle_relative_time(self) -> bool:
+        source = self.sourceModel()
+        if source:
+            return source.toggle_relative_time()
+        return False
+
+    def update_colors(self, color_config: Dict):
+        source = self.sourceModel()
+        if source:
+            source.update_colors(color_config)
+
+    def get_level_counts(self) -> dict:
+        source = self.sourceModel()
+        if source:
+            return source.get_level_counts()
+        return {}
+
+    def set_filter(self, text: str, levels: List[str], use_regex: bool, bookmarks_only: bool = False):
+        """Updates filters and invalidates to trigger refiltering."""
+        self._filter_engine.set_text_filter(text, use_regex)
+        self._filter_engine.set_level_filter(levels)
+        self._bookmarks_only = bookmarks_only
+        self.invalidateFilter()
+        if self._highlight_term:
+            self._rebuild_find_matches()
+
+    def set_time_range(self, from_dt: Optional[datetime], to_dt: Optional[datetime]):
+        """Sets a datetime range filter and invalidates filter."""
+        self._filter_engine.set_time_range(from_dt, to_dt)
+        self.invalidateFilter()
+        if self._highlight_term:
+            self._rebuild_find_matches()
+
+    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
+        source = self.sourceModel()
+        if not source:
+            return True
+        if source_row >= len(source._all_logs):
+            return False
+        log = source._all_logs[source_row]
+
+        if self._bookmarks_only and log.id not in source._bookmarks:
+            return False
+
+        return self._filter_engine.matches(log)
+
+    def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:
+        source = self.sourceModel()
+        if not source:
+            return super().lessThan(left, right)
+
+        if left.row() >= len(source._all_logs) or right.row() >= len(source._all_logs):
+            return False
+        log_left = source._all_logs[left.row()]
+        log_right = source._all_logs[right.row()]
+
+        col = left.column()
+        if col == COL_TIMESTAMP:
+            val_l = log_left.parsed_dt or datetime.min
+            val_r = log_right.parsed_dt or datetime.min
+            return val_l < val_r
+        elif col == COL_LEVEL:
+            val_l = log_left.level or ""
+            val_r = log_right.level or ""
+            return val_l < val_r
+        elif col == COL_MESSAGE:
+            val_l = (log_left.message or log_left.raw).lower()
+            val_r = (log_right.message or log_right.raw).lower()
+            return val_l < val_r
+        elif col == COL_INDEX:
+            try:
+                val_l = int(log_left.index or 0)
+                val_r = int(log_right.index or 0)
+            except ValueError:
+                val_l = log_left.index or ""
+                val_r = log_right.index or ""
+            return val_l < val_r
+        elif col == COL_MODULE:
+            val_l = (log_left.module or "").lower()
+            val_r = (log_right.module or "").lower()
+            return val_l < val_r
+        elif col == COL_SUBMODULE:
+            val_l = (log_left.submodule or "").lower()
+            val_r = (log_right.submodule or "").lower()
+            return val_l < val_r
+        return super().lessThan(left, right)
+
+    def toggle_bookmark(self, row: int):
+        source = self.sourceModel()
+        if not source or not (0 <= row < self.rowCount()):
+            return
+        source_idx = self.mapToSource(self.index(row, 0))
+        source.toggle_bookmark(source_idx.row())
 
     def get_entry_at_row(self, row: int) -> Optional[LogEntry]:
-        if 0 <= row < len(self._filtered_logs):
-            return self._filtered_logs[row]
-        return None
+        source = self.sourceModel()
+        if not source or not (0 <= row < self.rowCount()):
+            return None
+        source_idx = self.mapToSource(self.index(row, 0))
+        return source.get_entry_at_row(source_idx.row())
+
+    def set_highlight_term(self, term: str, use_regex: bool = False):
+        """Set search term to highlight."""
+        self._highlight_term = term
+        self._highlight_regex = use_regex
+        self._rebuild_find_matches()
+
+        # Trigger message column display refresh
+        if self.rowCount() > 0:
+            self.dataChanged.emit(
+                self.index(0, COL_MESSAGE),
+                self.index(self.rowCount() - 1, COL_MESSAGE),
+                [Qt.ItemDataRole.DisplayRole]
+            )
+
+    def _rebuild_find_matches(self):
+        """Rebuild rows matching search highlights among visible filtered rows."""
+        self._find_match_rows.clear()
+        self._find_current_idx = -1
+        if not self._highlight_term:
+            return
+
+        source = self.sourceModel()
+        if not source:
+            return
+
+        n = self.rowCount()
+        if self._highlight_regex:
+            try:
+                pattern = re.compile(self._highlight_term, re.IGNORECASE)
+                for i in range(n):
+                    source_idx = self.mapToSource(self.index(i, 0))
+                    log = source._all_logs[source_idx.row()]
+                    if pattern.search(log.raw):
+                        self._find_match_rows.append(i)
+            except re.error:
+                pass
+        else:
+            term_lower = self._highlight_term.lower()
+            for i in range(n):
+                source_idx = self.mapToSource(self.index(i, 0))
+                log = source._all_logs[source_idx.row()]
+                if term_lower in log.raw_lower:
+                    self._find_match_rows.append(i)
+
+    def find_navigate(self, direction: int) -> int:
+        if not self._find_match_rows:
+            return -1
+        n = len(self._find_match_rows)
+        if self._find_current_idx < 0:
+            self._find_current_idx = 0 if direction > 0 else n - 1
+        else:
+            self._find_current_idx = (self._find_current_idx + direction) % n
+        return self._find_match_rows[self._find_current_idx]
+
+    def find_match_count(self) -> int:
+        return len(self._find_match_rows)
+
+    def find_current_match(self) -> int:
+        return self._find_current_idx + 1 if self._find_current_idx >= 0 else 0
+
+    def get_bookmark_row(self, current_row: int, direction: int) -> int:
+        source = self.sourceModel()
+        if not source or not source._bookmarks:
+            return -1
+        n = self.rowCount()
+        if n == 0:
+            return -1
+        row = current_row
+        for _ in range(n):
+            row = (row + direction) % n
+            source_idx = self.mapToSource(self.index(row, 0))
+            log = source._all_logs[source_idx.row()]
+            if log.id in source._bookmarks:
+                return row
+        return -1

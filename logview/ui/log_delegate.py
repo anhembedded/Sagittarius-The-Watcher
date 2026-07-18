@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QPainter, QColor, QTextCharFormat, QTextCursor, QTextDocument
 from PySide6.QtCore import Qt, QModelIndex, QRectF
 import re
+from logview.ui.log_model import COL_MESSAGE
 
 
 class LogDelegate(QStyledItemDelegate):
@@ -45,7 +46,7 @@ class LogDelegate(QStyledItemDelegate):
             opt.palette.setBrush(opt.palette.ColorGroup.Inactive, opt.palette.ColorRole.Text, fg_brush)
 
         # 3. Rich search term highlighting for the message column (column 5)
-        if index.column() == 5 and self._term:
+        if index.column() == COL_MESSAGE and self._term:
             painter.save()
             text = opt.text
 

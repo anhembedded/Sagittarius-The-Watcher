@@ -1,5 +1,6 @@
 import asyncio
 from typing import Dict, Any
+from concurrent.futures import ThreadPoolExecutor
 
 from PySide6.QtCore import QThread, Signal
 
@@ -25,6 +26,7 @@ class ReceiverWorker(QThread):
         self.loop = None
         self._async_queue = None
         self._receivers = []
+        self._executor = ThreadPoolExecutor(max_workers=4)
 
     def run(self):
         self.loop = asyncio.new_event_loop()
@@ -67,6 +69,8 @@ class ReceiverWorker(QThread):
                         break
 
                 if logs:
+                    # Offload CPU-bound regex/JSON parsing to a ThreadPoolExecutor
+                    list(self._executor.map(self.parser.parse_fields, logs))
                     self.logs_received.emit(logs)
         except Exception as e:
             self.error_occurred.emit(str(e))
@@ -76,4 +80,5 @@ class ReceiverWorker(QThread):
 
     def stop(self):
         self.running = False
+        self._executor.shutdown(wait=False)
         self.wait()

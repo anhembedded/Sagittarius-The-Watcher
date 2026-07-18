@@ -1,7 +1,6 @@
 from PySide6.QtGui import QAction, QKeySequence, QActionGroup
 
 from logview.ui.settings_dialog import save_config_to_toml
-from logview.config import DEFAULT_CONFIG_PATH
 
 class MenuBuilder:
     """Builder for the main window menu bar."""

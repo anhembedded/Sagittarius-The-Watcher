@@ -83,7 +83,12 @@ async def test_file_tailing(qtbot, app_config):
         assert current_tab.model._all_logs[0].level == "ERROR"
 
     finally:
-        os.unlink(filepath)
+        if 'window' in locals():
+            window.close()
+        try:
+            os.unlink(filepath)
+        except Exception:
+            pass
 
 def test_pause_resume_stream(qtbot, app_config, monkeypatch):
     monkeypatch.setattr("logview.ui.components.log_tab.ReceiverWorker.start", lambda self: None)
@@ -126,7 +131,7 @@ def test_auto_scroll_logic(qtbot, app_config, monkeypatch):
     scrollbar = current_tab.table_view.verticalScrollBar()
     # Mocking scrollbar max to simulate scrolling up
     scrollbar.setMaximum(100)
-    current_tab._on_scroll(90) # Value less than maximum - 5
+    current_tab._on_scroll(80) # Value less than maximum - 10 to trigger scroll break
 
     assert current_tab.auto_scroll is False
 

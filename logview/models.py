@@ -19,6 +19,7 @@ class LogEntry:
     raw: str
     timestamp: Optional[str] = None
     level: Optional[str] = None
+    index: Optional[str] = None
     module: Optional[str] = None
     submodule: Optional[str] = None
     message: str = ""

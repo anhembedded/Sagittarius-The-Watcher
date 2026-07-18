@@ -6,7 +6,7 @@ port = 9999
 max_lines = 10000
 
 [log_format]
-pattern = "^\\[(?P<timestamp>.*?)\\]\\s*\\[(?P<level>\\w+)\\]\\s*(?P<message>.*)"
+pattern = "^(?:\\[(?P<index>\\d+)\\])?\\s*\\[(?P<timestamp>.*?)\\]\\s*\\[(?P<level>\\w+)\\](?:\\s*\\[(?P<module>\\w+)\\])?(?:\\s*\\[(?P<submodule>\\w+)\\])?\\s*(?P<message>.*)"
 
 [colors.DEBUG]
 bg = "#5e5c64"

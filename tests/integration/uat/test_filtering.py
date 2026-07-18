@@ -34,7 +34,8 @@ def test_level_filtering(populated_tab):
     assert populated_tab.model.rowCount() == 4
 
     # Filter by ERROR
-    populated_tab.filter_panel.level_combo.setCurrentText("ERROR")
+    for cb in populated_tab.filter_panel.level_checkboxes:
+        cb.setChecked(cb.text() == "ERROR")
     assert populated_tab.model.rowCount() == 2
     assert populated_tab.model._filtered_logs[0].level == "ERROR"
     assert populated_tab.model._filtered_logs[1].level == "ERROR"
@@ -67,7 +68,8 @@ def test_time_range_filter(populated_tab):
 
 def test_combined_filters(populated_tab):
     # Level + Text
-    populated_tab.filter_panel.level_combo.setCurrentText("ERROR")
+    for cb in populated_tab.filter_panel.level_checkboxes:
+        cb.setChecked(cb.text() == "ERROR")
     populated_tab.filter_panel.search_input.setText("configuration")
 
     assert populated_tab.model.rowCount() == 1

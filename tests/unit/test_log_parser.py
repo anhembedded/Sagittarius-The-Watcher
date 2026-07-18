@@ -138,3 +138,32 @@ def test_log_parser_json_module_submodule():
     assert entry.module == "Net"
     assert entry.submodule == "Sock"
     assert entry.message == "msg"
+
+def test_log_parser_index():
+    pattern = r"^(?:\[(?P<index>\d+)\])?\s*\[(?P<timestamp>.*?)\]\s*\[(?P<level>\w+)\](?:\s*\[(?P<module>\w+)\])?(?:\s*\[(?P<submodule>\w+)\])?\s*(?P<message>.*)"
+    parser = LogParser(pattern)
+    log_line = "[15] [2023-10-27 10:00:00] [INFO] [Network] [Socket] Connection established"
+
+    entry = parser.parse(log_line)
+
+    assert entry.index == "15"
+    assert entry.timestamp == "2023-10-27 10:00:00"
+    assert entry.level == "INFO"
+    assert entry.module == "Network"
+    assert entry.submodule == "Socket"
+    assert entry.message == "Connection established"
+
+def test_log_parser_continuation_lines():
+    from logview.config import get_config
+    config = get_config()
+    pattern = config["log_format"]["pattern"]
+    parser = LogParser(pattern)
+
+    # Valid new entries
+    assert parser.is_new_entry("[1] [2026-07-18 12:00:00.000] [INFO] [Auth] [Login] message") is True
+    assert parser.is_new_entry("[2026-07-18 12:00:00.000] [INFO] [Auth] [Login] message") is True
+
+    # Continuation lines must not be classified as a new entry
+    assert parser.is_new_entry("at db.py:45") is False
+    assert parser.is_new_entry("ConnectionError: Timeout while waiting for connection pool") is False
+    assert parser.is_new_entry("    at main.py:12") is False

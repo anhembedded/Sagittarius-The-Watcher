@@ -28,6 +28,18 @@ STACK_TRACES = [
     ("ERROR", "HTTP request failed", "RequestException: 504 Gateway Timeout for URL: https://api.service.internal/v1/data\n    at httpx._client.send(client.py:202)\n    at services.gateway.fetch(gateway.py:12)"),
 ]
 
+MODULE_SUBMODULES = [
+    ("Auth", "Login"),
+    ("Auth", "Session"),
+    ("Database", "Query"),
+    ("Database", "Pool"),
+    ("API", "Router"),
+    ("API", "Handler"),
+    ("Cache", "Redis"),
+    ("Worker", "Queue"),
+    ("Worker", "Scheduler"),
+]
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Log Generator for Log Viewer")
     parser.add_argument("--host", type=str, default="localhost", help="Host to connect to")
@@ -47,12 +59,14 @@ def parse_levels(level_str):
         weights.append(float(w))
     return levels, weights
 
-def generate_log_line(pattern, levels, weights):
+def generate_log_line(pattern, levels, weights, index):
+    module, submodule = random.choice(MODULE_SUBMODULES)
+
     # Randomly select if we want to generate a stack trace if pattern is 'mixed'
     if pattern == "mixed" and random.random() < 0.25: # 25% chance of stack trace
         level, msg, stack = random.choice(STACK_TRACES)
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-        return f"[{ts}] [{level}] {msg}\n{stack}\n"
+        return f"[{index}] [{ts}] [{level}] [{module}] [{submodule}] {msg}\n{stack}\n"
 
     # Otherwise choose a normal message
     level = random.choices(levels, weights=weights)[0]
@@ -70,12 +84,12 @@ def generate_log_line(pattern, levels, weights):
         selected_pattern = random.choices(["structured", "json"], weights=[0.8, 0.2])[0]
 
     if selected_pattern == "structured":
-        return f"[{ts}] [{level}] {msg}\n"
+        return f"[{index}] [{ts}] [{level}] [{module}] [{submodule}] {msg}\n"
     elif selected_pattern == "json":
-        return json.dumps({"timestamp": ts, "level": level, "message": msg}) + "\n"
+        return json.dumps({"index": index, "timestamp": ts, "level": level, "module": module, "submodule": submodule, "message": msg}) + "\n"
     elif selected_pattern == "apache":
         return f'127.0.0.1 - - [{ts}] "{level} /api/v1/resource HTTP/1.1" 200 {random.randint(100, 5000)} "{msg}"\n'
-    return f"[{ts}] [{level}] {msg}\n"
+    return f"[{index}] [{ts}] [{level}] [{module}] [{submodule}] {msg}\n"
 
 async def main():
     args = parse_args()
@@ -103,7 +117,7 @@ async def main():
             if args.duration > 0 and current_time - start_time > args.duration:
                 break
 
-            line = generate_log_line(args.pattern, levels, weights)
+            line = generate_log_line(args.pattern, levels, weights, logs_sent + 1)
             writer.write(line.encode('utf-8'))
             await writer.drain()
             logs_sent += 1

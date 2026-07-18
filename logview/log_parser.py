@@ -59,7 +59,7 @@ class LogParser:
             self.pattern = re.compile(r"^(?P<message>.*)")
 
     def parse(self, line: str) -> LogEntry:
-        """Parses a single log line.
+        """Parses a single log line (synchronously).
 
         Args:
             line (str): The raw log string.
@@ -67,49 +67,66 @@ class LogParser:
         Returns:
             LogEntry: Parsed entry. If not matched, returns entry with raw data and no parsed fields.
         """
-        clean_line = line.rstrip('\r\n')
-        match = self.pattern.match(clean_line)
+        entry = LogEntry(raw=line)
+        self.parse_fields(entry)
+        return entry
+
+    def parse_fields(self, entry: LogEntry):
+        """Parses metadata fields of a LogEntry lazily."""
+        if entry.timestamp is not None or entry.level is not None:
+            return  # Already parsed
+
+        parts = entry.raw.split("\n", 1)
+        first_line = parts[0].rstrip('\r\n')
+        continuation = parts[1] if len(parts) > 1 else ""
 
         # JSON fallback (Feature 13 lite: parse common JSON log formats)
-        if clean_line.startswith("{"):
+        if first_line.startswith("{"):
             try:
-                data = json.loads(clean_line)
+                data = json.loads(first_line)
                 ts_str = (data.get("timestamp") or data.get("time")
                           or data.get("ts") or data.get("datetime"))
                 level_raw = (data.get("level") or data.get("lvl")
                              or data.get("severity") or data.get("levelname"))
+                index_raw = (data.get("index") or data.get("idx"))
                 module_raw = (data.get("module") or data.get("mod"))
                 submodule_raw = (data.get("submodule") or data.get("submod"))
                 msg = (data.get("message") or data.get("msg")
-                       or data.get("text") or clean_line)
-                return LogEntry(
-                    raw=clean_line,
-                    timestamp=str(ts_str) if ts_str else None,
-                    level=str(level_raw).upper() if level_raw else None,
-                    module=str(module_raw) if module_raw else None,
-                    submodule=str(submodule_raw) if submodule_raw else None,
-                    message=str(msg),
-                    parsed_dt=_try_parse_datetime(str(ts_str) if ts_str else None),
-                )
+                       or data.get("text") or first_line)
+                
+                entry.timestamp = str(ts_str) if ts_str else None
+                entry.level = str(level_raw).upper() if level_raw else None
+                entry.index = str(index_raw) if index_raw is not None else None
+                entry.module = str(module_raw) if module_raw else None
+                entry.submodule = str(submodule_raw) if submodule_raw else None
+                entry.message = str(msg)
+                if continuation:
+                    entry.message += "\n" + continuation
+                entry.parsed_dt = _try_parse_datetime(entry.timestamp)
+                return
             except (json.JSONDecodeError, AttributeError):
                 pass
 
-        match = self.pattern.match(clean_line)
+        match = self.pattern.match(first_line)
 
         if match:
             group_dict = match.groupdict()
             ts_str = group_dict.get("timestamp")
-            return LogEntry(
-                raw=clean_line,
-                timestamp=ts_str,
-                level=group_dict.get("level", "").upper() if group_dict.get("level") else None,
-                module=group_dict.get("module"),
-                submodule=group_dict.get("submodule"),
-                message=group_dict.get("message", clean_line),
-                parsed_dt=_try_parse_datetime(ts_str),
-            )
+            entry.timestamp = ts_str
+            entry.level = group_dict.get("level", "").upper() if group_dict.get("level") else None
+            entry.index = group_dict.get("index")
+            entry.module = group_dict.get("module")
+            entry.submodule = group_dict.get("submodule")
+            msg = group_dict.get("message", first_line)
+            entry.message = msg
+            if continuation:
+                entry.message += "\n" + continuation
+            entry.parsed_dt = _try_parse_datetime(ts_str)
+            return
 
-        return LogEntry(raw=clean_line, message=clean_line)
+        entry.message = first_line
+        if continuation:
+            entry.message += "\n" + continuation
 
     def is_new_entry(self, line: str) -> bool:
         """Returns True if this line begins a new log entry (matches pattern or looks like JSON)."""
@@ -135,16 +152,15 @@ class MultiLineBuffer:
         """
         if self._parser.is_new_entry(line):
             prev = self._pending
-            self._pending = self._parser.parse(line)
+            self._pending = LogEntry(raw=line)
             return prev
         else:
             clean = line.rstrip('\r\n')
             if self._pending is not None:
                 self._pending.raw += "\n" + clean
-                self._pending.message += "\n" + clean
             else:
                 # No pending entry yet — treat as standalone
-                self._pending = self._parser.parse(line)
+                self._pending = LogEntry(raw=line)
             return None
 
     def flush(self) -> Optional[LogEntry]:
