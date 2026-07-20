@@ -154,8 +154,12 @@ def test_log_parser_index():
     assert entry.message == "Connection established"
 
 def test_log_parser_continuation_lines():
+    from unittest.mock import patch
+    import argparse
     from logview.config import get_config
-    config = get_config()
+    with patch("logview.config.parse_args") as mock_parse_args:
+        mock_parse_args.return_value = argparse.Namespace(host=None, port=None, listen_stdin=False, tail_file=None)
+        config = get_config()
     pattern = config["log_format"]["pattern"]
     parser = LogParser(pattern)
 
