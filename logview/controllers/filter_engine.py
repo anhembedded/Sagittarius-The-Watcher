@@ -10,12 +10,19 @@ class LogFilterEngine:
         self._filter_text = ""
         self._filter_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         self._filter_regex = False
+        self._compiled_regex = None
         self._filter_from_dt: Optional[datetime] = None
         self._filter_to_dt: Optional[datetime] = None
 
     def set_text_filter(self, text: str, regex: bool):
         self._filter_text = text
         self._filter_regex = regex
+        self._compiled_regex = None
+        if self._filter_regex and self._filter_text:
+            try:
+                self._compiled_regex = re.compile(self._filter_text)
+            except re.error:
+                self._compiled_regex = None
 
     def set_level_filter(self, levels: List[str]):
         self._filter_levels = levels
@@ -44,10 +51,9 @@ class LogFilterEngine:
         if self._filter_text:
             text_to_search = log.raw
             if self._filter_regex:
-                try:
-                    if not re.search(self._filter_text, text_to_search):
-                        return False
-                except re.error:
+                if self._compiled_regex is None:
+                    return False
+                if not self._compiled_regex.search(text_to_search):
                     return False
             else:
                 if self._filter_text.lower() not in text_to_search.lower():

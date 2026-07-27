@@ -1,6 +1,54 @@
 import pytest
-from logview.log_parser import LogParser
+from datetime import datetime, timezone, timedelta
+from logview.log_parser import LogParser, _try_parse_datetime
 from logview.models import LogEntry
+
+
+@pytest.mark.parametrize(
+    "ts_str, expected",
+    [
+        # ISO format
+        ("2023-10-27T10:00:00", datetime(2023, 10, 27, 10, 0, 0)),
+        ("2023-10-27 10:00:00", datetime(2023, 10, 27, 10, 0, 0)),
+        ("2023-10-27T10:00:00.123", datetime(2023, 10, 27, 10, 0, 0, 123000)),
+        ("2023-10-27T10:00:00Z", datetime(2023, 10, 27, 10, 0, 0, tzinfo=timezone.utc)),
+
+        # TIMESTAMP_FORMATS
+        # "%Y-%m-%d %H:%M:%S.%f"
+        ("2023-10-27 10:00:00.123456", datetime(2023, 10, 27, 10, 0, 0, 123456)),
+        # "%Y-%m-%d %H:%M:%S"
+        ("2023-10-27 10:00:00", datetime(2023, 10, 27, 10, 0, 0)),
+        # "%Y/%m/%d %H:%M:%S"
+        ("2023/10/27 10:00:00", datetime(2023, 10, 27, 10, 0, 0)),
+        # "%d/%b/%Y:%H:%M:%S"
+        ("27/Oct/2023:10:00:00", datetime(2023, 10, 27, 10, 0, 0)),
+        # "%d/%b/%Y:%H:%M:%S %z"
+        ("27/Oct/2023:10:00:00 +0000", datetime(2023, 10, 27, 10, 0, 0, tzinfo=timezone.utc)),
+        ("27/Oct/2023:10:00:00 +0200", datetime(2023, 10, 27, 10, 0, 0, tzinfo=timezone(timedelta(hours=2)))),
+
+        # With surrounding whitespace
+        ("  2023-10-27 10:00:00  ", datetime(2023, 10, 27, 10, 0, 0)),
+    ],
+)
+def test_try_parse_datetime_valid(ts_str, expected):
+    result = _try_parse_datetime(ts_str)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "ts_str",
+    [
+        None,
+        "",
+        "not a date",
+        "2023-10-27 25:00:00", # invalid time
+        "2023/13/27 10:00:00", # invalid month
+        1234567890, # not a string
+    ],
+)
+def test_try_parse_datetime_invalid(ts_str):
+    result = _try_parse_datetime(ts_str)
+    assert result is None
 
 def test_log_parser_valid_pattern():
     pattern = r"^\[(?P<timestamp>.*?)\]\s*\[(?P<level>\w+)\]\s*(?P<message>.*)"
@@ -154,8 +202,12 @@ def test_log_parser_index():
     assert entry.message == "Connection established"
 
 def test_log_parser_continuation_lines():
+    from unittest.mock import patch
+    import argparse
     from logview.config import get_config
-    config = get_config()
+    with patch("logview.config.parse_args") as mock_parse_args:
+        mock_parse_args.return_value = argparse.Namespace(host=None, port=None, listen_stdin=False, tail_file=None)
+        config = get_config()
     pattern = config["log_format"]["pattern"]
     parser = LogParser(pattern)
 
