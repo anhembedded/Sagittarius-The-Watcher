@@ -297,22 +297,16 @@ class LogModel(QAbstractTableModel):
             else:
                 self._new_row_fades[log_id] = new_fade
 
-        if self._new_row_fades:
-            for k in keys_to_remove:
-                del self._new_row_fades[k]
+        had_fades = bool(self._new_row_fades)
+        for k in keys_to_remove:
+            del self._new_row_fades[k]
 
-            if len(self._all_logs) > 0:
-                active_ids = set(self._new_row_fades.keys())
-                rows_to_update = [i for i, log in enumerate(self._all_logs) if log.id in active_ids]
-
-                if rows_to_update:
-                    min_row = rows_to_update[0]
-                    max_row = rows_to_update[-1]
-                    self.dataChanged.emit(
-                        self.index(min_row, 0),
-                        self.index(max_row, self.columnCount() - 1),
-                        [Qt.ItemDataRole.BackgroundRole]
-                    )
+        if (had_fades or self._new_row_fades) and len(self._all_logs) > 0:
+            self.dataChanged.emit(
+                self.index(0, 0),
+                self.index(len(self._all_logs) - 1, self.columnCount() - 1),
+                [Qt.ItemDataRole.BackgroundRole]
+            )
 
     def get_all_logs(self) -> List[LogEntry]:
         return self._all_logs
