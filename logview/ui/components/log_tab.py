@@ -106,13 +106,13 @@ class LogTab(QWidget):
         self._delegate = LogDelegate(self.table_view)
         self.table_view.setItemDelegate(self._delegate)
 
-        # Column widths
-        self.table_view.setColumnWidth(0, 30)   # Bookmark
-        self.table_view.setColumnWidth(1, 60)   # Index
-        self.table_view.setColumnWidth(2, 170)  # Timestamp
-        self.table_view.setColumnWidth(3, 80)   # Level
-        self.table_view.setColumnWidth(4, 100)  # Module
-        self.table_view.setColumnWidth(5, 100)  # Submodule
+        # Column widths (ensuring no truncation for ISO timestamps, module names & headers)
+        self.table_view.setColumnWidth(0, 32)   # Bookmark
+        self.table_view.setColumnWidth(1, 70)   # Index
+        self.table_view.setColumnWidth(2, 220)  # Timestamp
+        self.table_view.setColumnWidth(3, 90)   # Level
+        self.table_view.setColumnWidth(4, 150)  # Module
+        self.table_view.setColumnWidth(5, 150)  # Submodule
 
         self.main_window._apply_table_font_to_view(self.table_view)
 
