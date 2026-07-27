@@ -32,6 +32,8 @@ class LogEntry:
     def __post_init__(self):
         if self.id == 0:
             self.id = next(self._id_counter)
+        if not self.index:
+            self.index = str(self.id)
         self._raw_lower: Optional[str] = None
 
     @property
