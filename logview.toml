@@ -17,7 +17,7 @@ bg = "#26a269"
 fg = ""
 
 [colors.WARNING]
-bg = "#ff7800"
+bg = "#924400"
 fg = ""
 
 [colors.ERROR]
