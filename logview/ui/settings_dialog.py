@@ -1,11 +1,11 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import copy
 import json
 
 from PySide6.QtWidgets import (
     QDialog, QDialogButtonBox, QTabWidget, QWidget, QFormLayout,
     QVBoxLayout, QHBoxLayout, QLineEdit, QSpinBox, QPushButton,
-    QLabel, QFrame, QScrollArea, QSizePolicy, QComboBox
+    QLabel, QFrame, QComboBox
 )
 from PySide6.QtGui import QColor
 from PySide6.QtCore import Qt
