@@ -113,8 +113,7 @@ class TCPServerReceiver:
             asyncio.create_task(self._read_stdin())
         else:
             self.server = await asyncio.start_server(
-                self.handle_client, self.host, self.port,
-                reuse_address=True
+                self.handle_client, self.host, self.port
             )
             # The server will run in the background
 
@@ -152,14 +151,9 @@ class TCPServerReceiver:
 
     async def handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         """Handles an incoming client connection.
-
-        Each client connection gets its own MultiLineBuffer so stack traces are
-        correctly grouped regardless of connection interleaving.
-
-        Args:
-            reader (asyncio.StreamReader): The stream reader.
-            writer (asyncio.StreamWriter): The stream writer.
+        ...
         """
+        print("DEBUG: handle_client called!")
         addr = writer.get_extra_info('peername', ('?', 0))
         addr_str = f"{addr[0]}:{addr[1]}"
         buf = MultiLineBuffer(self.parser)
@@ -173,15 +167,19 @@ class TCPServerReceiver:
                     # Use a timeout to detect inactivity and flush the buffer
                     line_bytes = await asyncio.wait_for(reader.readline(), timeout=0.2)
                     if not line_bytes:
+                        print("DEBUG: Client disconnected (EOF)")
                         break
                     line = line_bytes.decode('utf-8', errors='replace')
+                    print(f"DEBUG: Read line: {line!r}")
                     entry = buf.feed(line)
                     if entry:
+                        print(f"DEBUG: Fed to buf, got entry")
                         await self._put_entry(entry)
                 except asyncio.TimeoutError:
                     # Inactivity timeout reached, flush pending log
                     entry = buf.flush()
                     if entry:
+                        print(f"DEBUG: Timeout flush, got entry")
                         await self._put_entry(entry)
         except asyncio.CancelledError:
             pass

@@ -30,7 +30,8 @@ Write-Host "Closing the Log Viewer window will automatically stop the dummy gene
 $env:QT_LOGGING_RULES = "qt.qpa.wayland.textinput=false"
 
 # Run the Log Viewer in the foreground
-& $VenvPython -m logview --port 9999
+$env:PYTHONPATH = ".;..\.."
+& $VenvPython -m logview --host 0.0.0.0 --port 9999
 
 Write-Host "Stopping Dummy Log Generator..." -ForegroundColor Cyan
 Stop-Job $GeneratorJob

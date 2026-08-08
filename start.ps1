@@ -17,4 +17,5 @@ Write-Host "Activating virtual environment..." -ForegroundColor Cyan
 
 Write-Host "Starting Sagittarius Log Viewer..." -ForegroundColor Green
 Set-Location $ScriptDir
-python -m logview @args
+$env:PYTHONPATH = ".;..\.."
+& python -m logview @args

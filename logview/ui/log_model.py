@@ -4,6 +4,10 @@ from typing import List, Optional, Any, Dict
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QTimer, Signal, QSortFilterProxyModel
 from PySide6.QtGui import QColor, QBrush
+from PySide6.QtQml import QmlElement
+
+QML_IMPORT_NAME = "LogView.Models"
+QML_IMPORT_MAJOR_VERSION = 1
 
 from logview.models import LogEntry
 from logview.controllers.filter_engine import LogFilterEngine
@@ -45,10 +49,21 @@ def _format_relative(dt: datetime) -> str:
         return ""
 
 
+@QmlElement
 class LogModel(QAbstractTableModel):
     """Model for managing and storing log entries.
     # MVC Pattern: Serves as the pure source Model.
     """
+    
+    RoleBookmark = Qt.UserRole + 1
+    RoleIndex = Qt.UserRole + 2
+    RoleTime = Qt.UserRole + 3
+    RoleLevel = Qt.UserRole + 4
+    RoleModule = Qt.UserRole + 5
+    RoleSubmodule = Qt.UserRole + 6
+    RoleMessage = Qt.UserRole + 7
+    RoleBgColor = Qt.UserRole + 8
+    RoleFgColor = Qt.UserRole + 9
 
     # Emitted whenever level counts change (add / clear)
     counts_changed = Signal(dict)
@@ -142,7 +157,55 @@ class LogModel(QAbstractTableModel):
             if col == COL_MESSAGE:
                 return log.raw
 
+        # --- QML Custom Roles ---
+        elif role == self.RoleBookmark:
+            return log.id in self._bookmarks
+        elif role == self.RoleIndex:
+            return log.index or ""
+        elif role == self.RoleTime:
+            if self._show_relative_time and log.parsed_dt:
+                return _format_relative(log.parsed_dt)
+            return log.timestamp or ""
+        elif role == self.RoleLevel:
+            return log.level or ""
+        elif role == self.RoleModule:
+            return log.module or ""
+        elif role == self.RoleSubmodule:
+            return log.submodule or ""
+        elif role == self.RoleMessage:
+            return (log.message or log.raw).split("\n")[0]
+        elif role == self.RoleBgColor:
+            fade = self._new_row_fades.get(log.id, 0)
+            if fade > 0:
+                return QColor(100, 150, 255, fade).name()
+            if log.level:
+                lvl = log.level.upper()
+                colors = self._level_colors.get(lvl)
+                if colors and colors[0] is not None:
+                    return colors[0].name()
+            return "transparent"
+        elif role == self.RoleFgColor:
+            if log.level:
+                lvl = log.level.upper()
+                colors = self._level_colors.get(lvl)
+                if colors and colors[1] is not None:
+                    return colors[1].name()
+            return "#ffffff"
+
         return None
+
+    def roleNames(self):
+        roles = super().roleNames()
+        roles[self.RoleBookmark] = b"bookmark"
+        roles[self.RoleIndex] = b"index"
+        roles[self.RoleTime] = b"time"
+        roles[self.RoleLevel] = b"level"
+        roles[self.RoleModule] = b"module"
+        roles[self.RoleSubmodule] = b"submodule"
+        roles[self.RoleMessage] = b"message"
+        roles[self.RoleBgColor] = b"bgColor"
+        roles[self.RoleFgColor] = b"fgColor"
+        return roles
 
     def headerData(self, section: int, orientation: Qt.Orientation,
                    role: int = Qt.ItemDataRole.DisplayRole) -> Any:
@@ -317,6 +380,7 @@ class LogModel(QAbstractTableModel):
         return None
 
 
+@QmlElement
 class LogFilterProxyModel(QSortFilterProxyModel):
     """Proxy model for high-performance sorting and filtering on the C++ native side.
     # MVC Pattern: Serves as the Controller/Proxy between Model and View.

@@ -4,7 +4,7 @@ from typing import Any, Dict
 
 DEFAULT_CONFIG_PATH = "logview.toml"
 DEFAULT_CONFIG_CONTENT = """[server]
-host = "localhost"
+host = "0.0.0.0"
 port = 9999
 
 [display]
@@ -91,7 +91,7 @@ def get_config() -> Dict[str, Any]:
 
     # Ensure sections exist
     if "server" not in config:
-        config["server"] = {"host": "localhost", "port": 9999}
+        config["server"] = {"host": "0.0.0.0", "port": 9999}
     if "display" not in config:
         config["display"] = {"max_lines": 10000}
     if "log_format" not in config:
