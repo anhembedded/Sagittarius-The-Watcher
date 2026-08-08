@@ -17,11 +17,18 @@ class LogDelegate(QStyledItemDelegate):
         super().__init__(parent)
         self._term: str = ""
         self._use_regex: bool = False
+        self._pattern: re.Pattern | None = None
 
     def set_term(self, term: str, use_regex: bool = False):
         """Set the search term to highlight. Empty string disables highlighting."""
         self._term = term
         self._use_regex = use_regex
+        self._pattern = None
+        if self._use_regex and self._term:
+            try:
+                self._pattern = re.compile(self._term, re.IGNORECASE)
+            except re.error:
+                self._pattern = None
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex):
         bg_brush = index.data(Qt.ItemDataRole.BackgroundRole)
@@ -70,15 +77,12 @@ class LogDelegate(QStyledItemDelegate):
             highlight_fmt.setForeground(QColor("#000000"))
 
             if self._use_regex:
-                try:
-                    pattern = re.compile(self._term, re.IGNORECASE)
-                    for match in pattern.finditer(text):
+                if self._pattern:
+                    for match in self._pattern.finditer(text):
                         cursor = QTextCursor(doc)
                         cursor.setPosition(match.start())
                         cursor.setPosition(match.end(), QTextCursor.MoveMode.KeepAnchor)
                         cursor.mergeCharFormat(highlight_fmt)
-                except re.error:
-                    pass
             else:
                 cursor = QTextCursor(doc)
                 find_flags = QTextDocument.FindFlag(0)
