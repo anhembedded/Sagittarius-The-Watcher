@@ -1,0 +1,20 @@
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+ignore = [
+    "DTZ",       # flake8-datetimez (timezones)
+    "BLE001",    # blind-except
+    "S110",      # try-except-pass
+    "ASYNC230",  # blocking-open-in-async
+    "RUF059",    # unused-unpacked-var
+    "RUF013",    # implicit-optional
+    "SIM102",    # collapsible-if
+    "F401",      # unused-import
+    "F841",      # unused-variable
+    "B008",      # function-call-in-default-argument
+    "C401",      # unnecessary-generator
+    "LOG015",    # warning-call
+    "PYI034",    # enter-return-self
+    "PT014"      # duplicate test case
+]

@@ -1,9 +1,12 @@
-import pytest
 import asyncio
-import tempfile
 import os
-from logview.receiver import TCPServerReceiver, FileTailReceiver
+import tempfile
+
+import pytest
+
 from logview.log_parser import LogParser
+from logview.receiver import FileTailReceiver, TCPServerReceiver
+
 
 @pytest.mark.asyncio
 async def test_file_tail_receiver():
@@ -30,6 +33,7 @@ async def test_file_tail_receiver():
     finally:
         await receiver.stop()
         os.unlink(filepath)
+
 
 @pytest.mark.asyncio
 async def test_tcp_server_receiver():

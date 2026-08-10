@@ -1,6 +1,6 @@
-import pytest
 from logview.controllers.filter_engine import LogFilterEngine
 from logview.models import LogEntry
+
 
 def test_filter_engine_multi_level():
     engine = LogFilterEngine()

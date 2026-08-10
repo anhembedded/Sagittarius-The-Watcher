@@ -1,5 +1,6 @@
 import pytest
 
+
 @pytest.fixture(autouse=True)
 def isolate_config(tmp_path, monkeypatch):
     """

@@ -1,21 +1,16 @@
-import pytest
+import json
 import os
 import tempfile
-import json
-from typing import Dict, Any
+from typing import Any
 
-from logview.ui.settings_dialog import save_config_to_toml
 from logview.config import load_toml
+from logview.ui.settings_dialog import save_config_to_toml
+
 
 def test_save_config_to_toml_escapes_malicious_host():
     """Test that a malicious string in host does not create new TOML sections."""
     malicious_host = 'localhost"\n[malicious]\nkey="value'
-    config: Dict[str, Any] = {
-        "server": {
-            "host": malicious_host,
-            "port": 9999
-        }
-    }
+    config: dict[str, Any] = {"server": {"host": malicious_host, "port": 9999}}
 
     with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as f:
         temp_path = f.name
@@ -28,7 +23,7 @@ def test_save_config_to_toml_escapes_malicious_host():
             content = f.read()
 
         assert "[malicious]" not in content.split("\n"), "Malicious section was successfully injected!"
-        assert "key=\"value\"" not in content.split("\n"), "Malicious key was successfully injected!"
+        assert 'key="value"' not in content.split("\n"), "Malicious key was successfully injected!"
 
         # It should contain the properly escaped string using JSON dumps representation
         escaped_host = json.dumps(malicious_host)

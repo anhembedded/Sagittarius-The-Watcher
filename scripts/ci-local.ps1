@@ -123,8 +123,10 @@ if (-not $SkipTests) {
     Write-Step "Pytest ($pytestTarget)"
     Push-Location $logviewerRoot
     try {
-        # LogViewer depends on sagittarius_engine which is 2 levels up
-        $env:PYTHONPATH = "$logviewerRoot;$logviewerRoot\..\.."
+        # LogViewer depends on sagittarius_engine which is located in a sibling repository
+        $sep = if ($IsLinux -or $IsMacOS) { ":" } else { ";" }
+        $enginePath = (Resolve-Path "$logviewerRoot/../Sagittarius_ForkBoy").Path
+        $env:PYTHONPATH = "$logviewerRoot$sep$enginePath"
         $env:QT_QPA_PLATFORM = "offscreen"
 
         $pytestArgs = @($pytestTarget, "-v")

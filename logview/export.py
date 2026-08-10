@@ -1,10 +1,10 @@
-from typing import List
 import json
 from datetime import datetime
+
 from logview.models import LogEntry
 
 
-def export_logs(entries: List[LogEntry], filepath: str, format: str = "log"):
+def export_logs(entries: list[LogEntry], filepath: str, format: str = "log"):
     """Exports a list of log entries to a file.
 
     Args:
@@ -13,32 +13,23 @@ def export_logs(entries: List[LogEntry], filepath: str, format: str = "log"):
         format (str): The format to save ("log" or "json").
     """
     if format == "json":
-        data = [
-            {
-                "timestamp": e.timestamp,
-                "level": e.level,
-                "message": e.message,
-                "raw": e.raw
-            }
-            for e in entries
-        ]
+        data = [{"timestamp": e.timestamp, "level": e.level, "message": e.message, "raw": e.raw} for e in entries]
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
     else:
         with open(filepath, "w", encoding="utf-8") as f:
-            for entry in entries:
-                f.write(entry.raw + "\n")
+            f.writelines(entry.raw + "\n" for entry in entries)
 
 
-def save_session(entries: List[LogEntry], filepath: str):
+def save_session(entries: list[LogEntry], filepath: str):
     """Saves all log entries as a session file (JSON) that can be reloaded later.
 
     Args:
         entries (List[LogEntry]): All log entries to persist.
         filepath (str): Output file path (conventionally *.lvsession).
     """
-    if not filepath.endswith('.lvsession'):
-        filepath += '.lvsession'
+    if not filepath.endswith(".lvsession"):
+        filepath += ".lvsession"
 
     data = {
         "version": 1,
@@ -52,13 +43,13 @@ def save_session(entries: List[LogEntry], filepath: str):
                 "parsed_dt": e.parsed_dt.isoformat() if e.parsed_dt else None,
             }
             for e in entries
-        ]
+        ],
     }
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 
-def load_session(filepath: str) -> List[LogEntry]:
+def load_session(filepath: str) -> list[LogEntry]:
     """Loads a previously saved session file.
 
     Args:
@@ -79,12 +70,14 @@ def load_session(filepath: str) -> List[LogEntry]:
                 parsed_dt = datetime.fromisoformat(dt_str)
             except (ValueError, TypeError):
                 pass
-        entries.append(LogEntry(
-            raw=item.get("raw", ""),
-            timestamp=item.get("timestamp"),
-            level=item.get("level"),
-            message=item.get("message", ""),
-            is_new=False,
-            parsed_dt=parsed_dt,
-        ))
+        entries.append(
+            LogEntry(
+                raw=item.get("raw", ""),
+                timestamp=item.get("timestamp"),
+                level=item.get("level"),
+                message=item.get("message", ""),
+                is_new=False,
+                parsed_dt=parsed_dt,
+            )
+        )
     return entries

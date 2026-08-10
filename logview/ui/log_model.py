@@ -1,16 +1,23 @@
 import re
 from datetime import datetime
-from typing import List, Optional, Any, Dict
+from typing import Any
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QTimer, Signal, QSortFilterProxyModel
-from PySide6.QtGui import QColor, QBrush
+from PySide6.QtCore import (
+    QAbstractTableModel,
+    QModelIndex,
+    QSortFilterProxyModel,
+    Qt,
+    QTimer,
+    Signal,
+)
+from PySide6.QtGui import QBrush, QColor
 from PySide6.QtQml import QmlElement
 
 QML_IMPORT_NAME = "LogView.Models"
 QML_IMPORT_MAJOR_VERSION = 1
 
-from logview.models import LogEntry
 from logview.controllers.filter_engine import LogFilterEngine
+from logview.models import LogEntry
 
 # Constants for column indices
 COL_BOOKMARK = 0
@@ -22,7 +29,7 @@ COL_SUBMODULE = 5
 COL_MESSAGE = 6
 
 
-def _parse_color(hex_str: str) -> Optional[QColor]:
+def _parse_color(hex_str: str) -> QColor | None:
     """Returns a QColor from a hex string, or None if empty/invalid."""
     if not hex_str or not hex_str.strip():
         return None
@@ -54,7 +61,7 @@ class LogModel(QAbstractTableModel):
     """Model for managing and storing log entries.
     # MVC Pattern: Serves as the pure source Model.
     """
-    
+
     RoleBookmark = Qt.UserRole + 1
     RoleIndex = Qt.UserRole + 2
     RoleTime = Qt.UserRole + 3
@@ -68,13 +75,13 @@ class LogModel(QAbstractTableModel):
     # Emitted whenever level counts change (add / clear)
     counts_changed = Signal(dict)
 
-    def __init__(self, parent=None, max_lines: int = 10000, color_config: Dict = None):
+    def __init__(self, parent=None, max_lines: int = 10000, color_config: dict = None):
         super().__init__(parent)
-        self._all_logs: List[LogEntry] = []
+        self._all_logs: list[LogEntry] = []
         self._max_lines = max_lines
 
         # Build level -> (bg QColor | None, fg QColor | None) lookup
-        self._level_colors: Dict[str, tuple] = {}
+        self._level_colors: dict[str, tuple] = {}
         if color_config:
             for level, colors in color_config.items():
                 bg = _parse_color(colors.get("bg", ""))
@@ -82,7 +89,7 @@ class LogModel(QAbstractTableModel):
                 self._level_colors[level.upper()] = (bg, fg)
 
         self._bookmarks: set[int] = set()
-        self._level_counts: Dict[str, int] = {}
+        self._level_counts: dict[str, int] = {}
 
         # --- Relative time (Feature 14) ---
         self._show_relative_time: bool = False
@@ -207,8 +214,7 @@ class LogModel(QAbstractTableModel):
         roles[self.RoleFgColor] = b"fgColor"
         return roles
 
-    def headerData(self, section: int, orientation: Qt.Orientation,
-                   role: int = Qt.ItemDataRole.DisplayRole) -> Any:
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
             if section == COL_BOOKMARK:
                 return "B"
@@ -235,8 +241,7 @@ class LogModel(QAbstractTableModel):
             flags |= Qt.ItemFlag.ItemIsUserCheckable
         return flags
 
-    def setData(self, index: QModelIndex, value: Any,
-                role: int = Qt.ItemDataRole.EditRole) -> bool:
+    def setData(self, index: QModelIndex, value: Any, role: int = Qt.ItemDataRole.EditRole) -> bool:
         if not index.isValid():
             return False
 
@@ -261,7 +266,7 @@ class LogModel(QAbstractTableModel):
             idx = self.index(row, COL_BOOKMARK)
             self.dataChanged.emit(idx, idx, [Qt.ItemDataRole.CheckStateRole])
 
-    def add_logs(self, logs: List[LogEntry]):
+    def add_logs(self, logs: list[LogEntry]):
         """Adds new logs to the model and updates counters."""
         if not logs:
             return
@@ -333,7 +338,7 @@ class LogModel(QAbstractTableModel):
                 [Qt.ItemDataRole.DisplayRole],
             )
 
-    def update_colors(self, color_config: Dict):
+    def update_colors(self, color_config: dict):
         """Live-updates the level color mapping and redraws the table."""
         self._level_colors = {}
         if color_config:
@@ -368,13 +373,13 @@ class LogModel(QAbstractTableModel):
             self.dataChanged.emit(
                 self.index(0, 0),
                 self.index(len(self._all_logs) - 1, self.columnCount() - 1),
-                [Qt.ItemDataRole.BackgroundRole]
+                [Qt.ItemDataRole.BackgroundRole],
             )
 
-    def get_all_logs(self) -> List[LogEntry]:
+    def get_all_logs(self) -> list[LogEntry]:
         return self._all_logs
 
-    def get_entry_at_row(self, row: int) -> Optional[LogEntry]:
+    def get_entry_at_row(self, row: int) -> LogEntry | None:
         if 0 <= row < len(self._all_logs):
             return self._all_logs[row]
         return None
@@ -385,6 +390,7 @@ class LogFilterProxyModel(QSortFilterProxyModel):
     """Proxy model for high-performance sorting and filtering on the C++ native side.
     # MVC Pattern: Serves as the Controller/Proxy between Model and View.
     """
+
     counts_changed = Signal(dict)
 
     def __init__(self, parent=None):
@@ -394,11 +400,11 @@ class LogFilterProxyModel(QSortFilterProxyModel):
 
         self._highlight_term: str = ""
         self._highlight_regex: bool = False
-        self._find_match_rows: List[int] = []
+        self._find_match_rows: list[int] = []
         self._find_current_idx: int = -1
 
-        self._warning_rows: List[int] = []
-        self._error_rows: List[int] = []
+        self._warning_rows: list[int] = []
+        self._error_rows: list[int] = []
 
         # Enable dynamic filtering update as the source model changes
         self.setDynamicSortFilter(True)
@@ -432,7 +438,7 @@ class LogFilterProxyModel(QSortFilterProxyModel):
             model.counts_changed.connect(self.counts_changed.emit)
             self._rebuild_heatmap_indices()
 
-    def add_logs(self, logs: List[LogEntry]):
+    def add_logs(self, logs: list[LogEntry]):
         source = self.sourceModel()
         if source:
             source.add_logs(logs)
@@ -442,19 +448,19 @@ class LogFilterProxyModel(QSortFilterProxyModel):
         if source:
             source.clear_logs()
 
-    def get_all_logs(self) -> List[LogEntry]:
+    def get_all_logs(self) -> list[LogEntry]:
         source = self.sourceModel()
         if source:
             return source.get_all_logs()
         return []
 
     @property
-    def _all_logs(self) -> List[LogEntry]:
+    def _all_logs(self) -> list[LogEntry]:
         source = self.sourceModel()
         return source._all_logs if source else []
 
     @property
-    def _filtered_logs(self) -> List[LogEntry]:
+    def _filtered_logs(self) -> list[LogEntry]:
         source = self.sourceModel()
         if not source:
             return []
@@ -471,7 +477,7 @@ class LogFilterProxyModel(QSortFilterProxyModel):
             return source.toggle_relative_time()
         return False
 
-    def update_colors(self, color_config: Dict):
+    def update_colors(self, color_config: dict):
         source = self.sourceModel()
         if source:
             source.update_colors(color_config)
@@ -482,7 +488,7 @@ class LogFilterProxyModel(QSortFilterProxyModel):
             return source.get_level_counts()
         return {}
 
-    def set_filter(self, text: str, levels: List[str], use_regex: bool, bookmarks_only: bool = False):
+    def set_filter(self, text: str, levels: list[str], use_regex: bool, bookmarks_only: bool = False):
         """Updates filters and invalidates to trigger refiltering."""
         self._filter_engine.set_text_filter(text, use_regex)
         self._filter_engine.set_level_filter(levels)
@@ -491,7 +497,7 @@ class LogFilterProxyModel(QSortFilterProxyModel):
         if self._highlight_term:
             self._rebuild_find_matches()
 
-    def set_time_range(self, from_dt: Optional[datetime], to_dt: Optional[datetime]):
+    def set_time_range(self, from_dt: datetime | None, to_dt: datetime | None):
         """Sets a datetime range filter and invalidates filter."""
         self._filter_engine.set_time_range(from_dt, to_dt)
         self.invalidateFilter()
@@ -559,7 +565,7 @@ class LogFilterProxyModel(QSortFilterProxyModel):
         source_idx = self.mapToSource(self.index(row, 0))
         source.toggle_bookmark(source_idx.row())
 
-    def get_entry_at_row(self, row: int) -> Optional[LogEntry]:
+    def get_entry_at_row(self, row: int) -> LogEntry | None:
         source = self.sourceModel()
         if not source or not (0 <= row < self.rowCount()):
             return None
@@ -575,9 +581,7 @@ class LogFilterProxyModel(QSortFilterProxyModel):
         # Trigger message column display refresh
         if self.rowCount() > 0:
             self.dataChanged.emit(
-                self.index(0, COL_MESSAGE),
-                self.index(self.rowCount() - 1, COL_MESSAGE),
-                [Qt.ItemDataRole.DisplayRole]
+                self.index(0, COL_MESSAGE), self.index(self.rowCount() - 1, COL_MESSAGE), [Qt.ItemDataRole.DisplayRole]
             )
 
     def _rebuild_find_matches(self):

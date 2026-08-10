@@ -1,12 +1,14 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout
 from PySide6.QtCharts import QChart, QChartView, QPieSeries
-from PySide6.QtGui import QPainter
 from PySide6.QtCore import Slot
+from PySide6.QtGui import QPainter
+from PySide6.QtWidgets import QVBoxLayout, QWidget
+
 
 class LiveStatsPanel(QWidget):
     """
     Panel to show live statistics of log levels.
     """
+
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
@@ -27,7 +29,7 @@ class LiveStatsPanel(QWidget):
         self.slice_crit.setColor("#8e44ad")
         self.slice_warn.setColor("#e67e22")
         self.slice_debug.setColor("#7f8c8d")
-        self.slice_info.setColor("#3498db") # Default info color
+        self.slice_info.setColor("#3498db")  # Default info color
 
         self.chart = QChart()
         self.chart.addSeries(self.series)

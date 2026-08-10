@@ -1,4 +1,5 @@
-from PySide6.QtWidgets import QStatusBar, QLabel
+from PySide6.QtWidgets import QLabel, QStatusBar
+
 
 class LogStatusBar(QStatusBar):
     """Custom Status Bar for the Log Viewer."""

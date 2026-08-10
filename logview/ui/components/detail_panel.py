@@ -1,6 +1,7 @@
-from PySide6.QtWidgets import QTextEdit
-from PySide6.QtGui import QFont
 from PySide6.QtCore import Slot
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import QTextEdit
+
 
 class DetailPanel(QTextEdit):
     """Panel for displaying detailed log information."""
@@ -24,6 +25,7 @@ class DetailPanel(QTextEdit):
             if entry.raw.strip().startswith("{"):
                 try:
                     import json
+
                     parsed_json = json.loads(entry.raw)
                     pretty_raw = json.dumps(parsed_json, indent=4)
                 except Exception:

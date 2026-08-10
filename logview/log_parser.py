@@ -1,7 +1,7 @@
-import re
 import json
+import re
 from datetime import datetime
-from typing import Optional
+
 from logview.models import LogEntry
 
 TIMESTAMP_FORMATS = [
@@ -13,7 +13,7 @@ TIMESTAMP_FORMATS = [
 ]
 
 
-def _try_parse_datetime(ts_str: Optional[str]) -> Optional[datetime]:
+def _try_parse_datetime(ts_str: str | None) -> datetime | None:
     """Attempt to parse a timestamp string into a datetime object."""
     if not ts_str:
         return None
@@ -44,17 +44,18 @@ class LogParser:
             self.pattern = re.compile(pattern)
         except re.error as e:
             import logging
+
             logging.warning(f"Invalid regex pattern '{pattern}': {e}. Falling back to raw regex.")
-            from PySide6.QtWidgets import QMessageBox
             # To avoid crashing or showing dialogs in non-GUI thread testing contexts,
             # we can attempt to show a message box if a QApplication exists.
-            from PySide6.QtWidgets import QApplication
+            from PySide6.QtWidgets import QApplication, QMessageBox
+
             if QApplication.instance():
                 QMessageBox.warning(
                     None,
                     "Invalid Log Format Regex",
                     f"The configured log format regex pattern is invalid:\n{e}\n\n"
-                    "Falling back to a raw matching pattern to prevent application crash."
+                    "Falling back to a raw matching pattern to prevent application crash.",
                 )
             self.pattern = re.compile(r"^(?P<message>.*)")
 
@@ -77,23 +78,20 @@ class LogParser:
             return  # Already parsed
 
         parts = entry.raw.split("\n", 1)
-        first_line = parts[0].rstrip('\r\n')
+        first_line = parts[0].rstrip("\r\n")
         continuation = parts[1] if len(parts) > 1 else ""
 
         # JSON fallback (Feature 13 lite: parse common JSON log formats)
         if first_line.startswith("{"):
             try:
                 data = json.loads(first_line)
-                ts_str = (data.get("timestamp") or data.get("time")
-                          or data.get("ts") or data.get("datetime"))
-                level_raw = (data.get("level") or data.get("lvl")
-                             or data.get("severity") or data.get("levelname"))
-                index_raw = (data.get("index") or data.get("idx"))
-                module_raw = (data.get("module") or data.get("mod"))
-                submodule_raw = (data.get("submodule") or data.get("submod"))
-                msg = (data.get("message") or data.get("msg")
-                       or data.get("text") or first_line)
-                
+                ts_str = data.get("timestamp") or data.get("time") or data.get("ts") or data.get("datetime")
+                level_raw = data.get("level") or data.get("lvl") or data.get("severity") or data.get("levelname")
+                index_raw = data.get("index") or data.get("idx")
+                module_raw = data.get("module") or data.get("mod")
+                submodule_raw = data.get("submodule") or data.get("submod")
+                msg = data.get("message") or data.get("msg") or data.get("text") or first_line
+
                 entry.timestamp = str(ts_str) if ts_str else None
                 entry.level = str(level_raw).upper() if level_raw else None
                 entry.index = str(index_raw) if index_raw is not None else None
@@ -130,7 +128,7 @@ class LogParser:
 
     def is_new_entry(self, line: str) -> bool:
         """Returns True if this line begins a new log entry (matches pattern or looks like JSON)."""
-        clean_line = line.rstrip('\r\n')
+        clean_line = line.rstrip("\r\n")
         return bool(self.pattern.match(clean_line)) or clean_line.startswith("{")
 
 
@@ -142,9 +140,9 @@ class MultiLineBuffer:
 
     def __init__(self, parser: LogParser):
         self._parser = parser
-        self._pending: Optional[LogEntry] = None
+        self._pending: LogEntry | None = None
 
-    def feed(self, line: str) -> Optional[LogEntry]:
+    def feed(self, line: str) -> LogEntry | None:
         """Process one raw line.
 
         Returns a completed LogEntry when a new entry starts (flushing the
@@ -155,7 +153,7 @@ class MultiLineBuffer:
             self._pending = LogEntry(raw=line)
             return prev
         else:
-            clean = line.rstrip('\r\n')
+            clean = line.rstrip("\r\n")
             if self._pending is not None:
                 self._pending.raw += "\n" + clean
             else:
@@ -163,7 +161,7 @@ class MultiLineBuffer:
                 self._pending = LogEntry(raw=line)
             return None
 
-    def flush(self) -> Optional[LogEntry]:
+    def flush(self) -> LogEntry | None:
         """Flush and return any remaining buffered entry."""
         prev = self._pending
         self._pending = None

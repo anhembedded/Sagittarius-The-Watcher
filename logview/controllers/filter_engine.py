@@ -1,7 +1,8 @@
 import re
-from typing import Optional, List
 from datetime import datetime
+
 from logview.models import LogEntry
+
 
 class LogFilterEngine:
     """Engine responsible for applying filters to log entries."""
@@ -11,8 +12,8 @@ class LogFilterEngine:
         self._filter_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         self._filter_regex = False
         self._compiled_regex = None
-        self._filter_from_dt: Optional[datetime] = None
-        self._filter_to_dt: Optional[datetime] = None
+        self._filter_from_dt: datetime | None = None
+        self._filter_to_dt: datetime | None = None
 
     def set_text_filter(self, text: str, regex: bool):
         self._filter_text = text
@@ -24,10 +25,10 @@ class LogFilterEngine:
             except re.error:
                 self._compiled_regex = None
 
-    def set_level_filter(self, levels: List[str]):
+    def set_level_filter(self, levels: list[str]):
         self._filter_levels = levels
 
-    def set_time_range(self, from_dt: Optional[datetime], to_dt: Optional[datetime]):
+    def set_time_range(self, from_dt: datetime | None, to_dt: datetime | None):
         self._filter_from_dt = from_dt
         self._filter_to_dt = to_dt
 

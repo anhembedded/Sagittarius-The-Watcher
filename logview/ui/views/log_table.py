@@ -1,6 +1,7 @@
-from PySide6.QtWidgets import QTableView, QMenu, QApplication
-from PySide6.QtCore import Qt, QEvent, Slot
-from PySide6.QtGui import QFont, QKeySequence, QAction
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtWidgets import QMenu, QTableView
+
 
 class LogTableView(QTableView):
     """Custom TableView for Logs."""
@@ -50,7 +51,7 @@ class LogTableView(QTableView):
         current_row = idx.row() if idx.isValid() else -1
         new_row = self.model().get_bookmark_row(current_row, direction)
         if new_row >= 0:
-            new_idx = self.model().index(new_row, 3) # any valid column
+            new_idx = self.model().index(new_row, 3)  # any valid column
             self.setCurrentIndex(new_idx)
             self.scrollTo(new_idx, QTableView.ScrollHint.PositionAtCenter)
 

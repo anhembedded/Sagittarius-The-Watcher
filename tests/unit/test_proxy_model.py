@@ -1,7 +1,7 @@
 from datetime import datetime
-from PySide6.QtCore import QModelIndex
-from logview.ui.log_model import LogModel, LogFilterProxyModel
+
 from logview.models import LogEntry
+from logview.ui.log_model import LogFilterProxyModel, LogModel
 
 
 def test_proxy_model_filtering_and_sorting():
@@ -12,9 +12,30 @@ def test_proxy_model_filtering_and_sorting():
 
     # Ingest test logs
     logs = [
-        LogEntry(raw="[1] [2026-07-18 12:00:00] [INFO] Msg A", timestamp="2026-07-18 12:00:00", level="INFO", message="Msg A", index="1", parsed_dt=datetime(2026, 7, 18, 12, 0, 0)),
-        LogEntry(raw="[2] [2026-07-18 12:05:00] [WARNING] Msg B", timestamp="2026-07-18 12:05:00", level="WARNING", message="Msg B", index="2", parsed_dt=datetime(2026, 7, 18, 12, 5, 0)),
-        LogEntry(raw="[3] [2026-07-18 12:10:00] [ERROR] Msg C", timestamp="2026-07-18 12:10:00", level="ERROR", message="Msg C", index="3", parsed_dt=datetime(2026, 7, 18, 12, 10, 0)),
+        LogEntry(
+            raw="[1] [2026-07-18 12:00:00] [INFO] Msg A",
+            timestamp="2026-07-18 12:00:00",
+            level="INFO",
+            message="Msg A",
+            index="1",
+            parsed_dt=datetime(2026, 7, 18, 12, 0, 0),
+        ),
+        LogEntry(
+            raw="[2] [2026-07-18 12:05:00] [WARNING] Msg B",
+            timestamp="2026-07-18 12:05:00",
+            level="WARNING",
+            message="Msg B",
+            index="2",
+            parsed_dt=datetime(2026, 7, 18, 12, 5, 0),
+        ),
+        LogEntry(
+            raw="[3] [2026-07-18 12:10:00] [ERROR] Msg C",
+            timestamp="2026-07-18 12:10:00",
+            level="ERROR",
+            message="Msg C",
+            index="3",
+            parsed_dt=datetime(2026, 7, 18, 12, 10, 0),
+        ),
     ]
     model.add_logs(logs)
 
@@ -48,4 +69,4 @@ def test_proxy_model_filtering_and_sorting():
     assert len(proxy._warning_rows) == 1
     assert proxy._warning_rows[0] == 1  # Msg B is at visible index 1
     assert len(proxy._error_rows) == 1
-    assert proxy._error_rows[0] == 2    # Msg C is at visible index 2
+    assert proxy._error_rows[0] == 2  # Msg C is at visible index 2

@@ -1,6 +1,5 @@
-from PySide6.QtGui import QAction, QKeySequence, QActionGroup
+from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 
-from logview.ui.settings_dialog import save_config_to_toml
 
 class MenuBuilder:
     """Builder for the main window menu bar."""
@@ -63,7 +62,7 @@ class MenuBuilder:
 
         view_menu.addSeparator()
 
-        if hasattr(self.main_window, 'stats_dock') and self.main_window.stats_dock:
+        if hasattr(self.main_window, "stats_dock") and self.main_window.stats_dock:
             act_toggle_stats = self.main_window.stats_dock.toggleViewAction()
             act_toggle_stats.setText("Live Statistics Panel")
             view_menu.addAction(act_toggle_stats)
@@ -94,6 +93,7 @@ class MenuBuilder:
 
         try:
             from qt_material import list_themes
+
             all_material = list_themes()
         except ImportError:
             all_material = []

@@ -3,7 +3,7 @@ import logging
 import socket
 import sys
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class LoggerManager:
@@ -14,14 +14,13 @@ class LoggerManager:
     optionally an ``extra`` object for custom context.
     """
 
-    def __init__(self, host: str = "localhost", port: int = 9999,
-                 module_name: Optional[str] = None, timeout: float = 2.0):
+    def __init__(self, host: str = "localhost", port: int = 9999, module_name: str | None = None, timeout: float = 2.0):
         self.host = host
         self.port = port
         self.module_name = module_name or "app"
         self.timeout = timeout
-        self._socket: Optional[socket.socket] = None
-        self._last_error: Optional[str] = None
+        self._socket: socket.socket | None = None
+        self._last_error: str | None = None
 
     def _now(self) -> str:
         return datetime.now(timezone.utc).isoformat()
@@ -48,9 +47,10 @@ class LoggerManager:
             return str(value)
         return str(value)
 
-    def _build_payload(self, level: str, message: str, extra: Optional[Dict[str, Any]] = None,
-                       exc_info: bool = False) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {
+    def _build_payload(
+        self, level: str, message: str, extra: dict[str, Any] | None = None, exc_info: bool = False
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
             "timestamp": self._now(),
             "level": level.upper(),
             "message": message,
@@ -64,9 +64,10 @@ class LoggerManager:
 
     def _format_exception(self) -> str:
         import traceback
+
         return "\n".join(traceback.format_exception(*sys.exc_info()))
 
-    def _send(self, payload: Dict[str, Any]) -> None:
+    def _send(self, payload: dict[str, Any]) -> None:
         try:
             sock = self._connect()
             data = (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
@@ -84,28 +85,27 @@ class LoggerManager:
                 pass
             self._socket = None
 
-    def emit(self, level: str, message: str, extra: Optional[Dict[str, Any]] = None,
-             exc_info: bool = False) -> None:
+    def emit(self, level: str, message: str, extra: dict[str, Any] | None = None, exc_info: bool = False) -> None:
         """Emit a log event to the receiver."""
         payload = self._build_payload(level, message, extra=extra, exc_info=exc_info)
         self._send(payload)
 
-    def debug(self, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
+    def debug(self, message: str, extra: dict[str, Any] | None = None) -> None:
         self.emit("DEBUG", message, extra=extra)
 
-    def info(self, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
+    def info(self, message: str, extra: dict[str, Any] | None = None) -> None:
         self.emit("INFO", message, extra=extra)
 
-    def warning(self, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
+    def warning(self, message: str, extra: dict[str, Any] | None = None) -> None:
         self.emit("WARNING", message, extra=extra)
 
-    def error(self, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
+    def error(self, message: str, extra: dict[str, Any] | None = None) -> None:
         self.emit("ERROR", message, extra=extra)
 
-    def critical(self, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
+    def critical(self, message: str, extra: dict[str, Any] | None = None) -> None:
         self.emit("CRITICAL", message, extra=extra)
 
-    def exception(self, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
+    def exception(self, message: str, extra: dict[str, Any] | None = None) -> None:
         self.emit("ERROR", message, extra=extra, exc_info=True)
 
     def close(self) -> None:
@@ -121,8 +121,7 @@ class LoggerManager:
 class LoggerManagerHandler(logging.Handler):
     """A logging.Handler that forwards records to the Log Viewer."""
 
-    def __init__(self, host: str = "localhost", port: int = 9999,
-                 module_name: Optional[str] = None, timeout: float = 2.0):
+    def __init__(self, host: str = "localhost", port: int = 9999, module_name: str | None = None, timeout: float = 2.0):
         super().__init__()
         self.manager = LoggerManager(host=host, port=port, module_name=module_name, timeout=timeout)
 

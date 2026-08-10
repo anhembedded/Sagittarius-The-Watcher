@@ -1,19 +1,22 @@
-import pytest
 import asyncio
-import tempfile
 import os
-from PySide6.QtCore import Qt
+import tempfile
+
+import pytest
 from PySide6.QtWidgets import QApplication
-from logview.ui.main_window import MainWindow
+
 from logview.models import LogEntry
+from logview.ui.main_window import MainWindow
+
 
 @pytest.fixture
 def app_config():
     return {
         "server": {"host": "127.0.0.1", "port": 0},
         "display": {"max_lines": 1000},
-        "log_format": {"pattern": r"^\[(?P<timestamp>.*?)\]\s*\[(?P<level>\w+)\]\s*(?P<message>.*)"}
+        "log_format": {"pattern": r"^\[(?P<timestamp>.*?)\]\s*\[(?P<level>\w+)\]\s*(?P<message>.*)"},
     }
+
 
 @pytest.mark.asyncio
 async def test_tcp_connection(qtbot, app_config, monkeypatch):
@@ -24,7 +27,10 @@ async def test_tcp_connection(qtbot, app_config, monkeypatch):
 
     # Wait for TCP receiver to start binding
     for _ in range(50):
-        if current_tab.receiver_thread._receivers and getattr(current_tab.receiver_thread._receivers[0], "server", None) is not None:
+        if (
+            current_tab.receiver_thread._receivers
+            and getattr(current_tab.receiver_thread._receivers[0], "server", None) is not None
+        ):
             break
         await asyncio.sleep(0.1)
 
@@ -54,6 +60,8 @@ async def test_tcp_connection(qtbot, app_config, monkeypatch):
 
     writer.close()
     await writer.wait_closed()
+    window.close()
+
 
 @pytest.mark.asyncio
 async def test_file_tailing(qtbot, app_config):
@@ -83,12 +91,13 @@ async def test_file_tailing(qtbot, app_config):
         assert current_tab.model._all_logs[0].level == "ERROR"
 
     finally:
-        if 'window' in locals():
+        if "window" in locals():
             window.close()
         try:
             os.unlink(filepath)
         except Exception:
             pass
+
 
 def test_pause_resume_stream(qtbot, app_config, monkeypatch):
     monkeypatch.setattr("logview.ui.components.log_tab.ReceiverWorker.start", lambda self: None)
@@ -118,6 +127,7 @@ def test_pause_resume_stream(qtbot, app_config, monkeypatch):
     assert len(current_tab.pending_logs) == 0
     assert "Pending Buffer: 0" in window.status_bar._status_pending.text()
 
+
 def test_auto_scroll_logic(qtbot, app_config, monkeypatch):
     monkeypatch.setattr("logview.ui.components.log_tab.ReceiverWorker.start", lambda self: None)
 
@@ -131,13 +141,14 @@ def test_auto_scroll_logic(qtbot, app_config, monkeypatch):
     scrollbar = current_tab.table_view.verticalScrollBar()
     # Mocking scrollbar max to simulate scrolling up
     scrollbar.setMaximum(100)
-    current_tab._on_scroll(80) # Value less than maximum - 10 to trigger scroll break
+    current_tab._on_scroll(80)  # Value less than maximum - 10 to trigger scroll break
 
     assert current_tab.auto_scroll is False
 
     # Simulate scrolling back to bottom
     current_tab._on_scroll(98)
     assert current_tab.auto_scroll is True
+
 
 @pytest.mark.asyncio
 async def test_new_source_tab(qtbot, app_config, monkeypatch):
@@ -162,3 +173,4 @@ async def test_new_source_tab(qtbot, app_config, monkeypatch):
     new_tab = window.tab_widget.widget(1)
 
     assert new_tab.receiver_thread is not None
+    window.close()

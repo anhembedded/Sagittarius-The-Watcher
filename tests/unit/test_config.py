@@ -1,10 +1,10 @@
-import pytest
+import argparse
 import os
 import tempfile
-import argparse
 from unittest.mock import patch
 
 from logview.config import get_config, load_toml
+
 
 def test_load_toml_valid():
     with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as f:
@@ -17,6 +17,7 @@ def test_load_toml_valid():
         assert config["server"]["port"] == 8080
     finally:
         os.unlink(temp_path)
+
 
 @patch("logview.config.parse_args")
 def test_get_config_with_cli_args(mock_parse_args):

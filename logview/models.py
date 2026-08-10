@@ -1,7 +1,7 @@
 import itertools
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 from datetime import datetime
+
 
 @dataclass
 class LogEntry:
@@ -16,16 +16,17 @@ class LogEntry:
         is_new (bool): Indicates if the log is newly added, used for UI animation.
         parsed_dt (Optional[datetime]): Datetime parsed from timestamp, used for sorting/relative time.
     """
+
     raw: str
-    timestamp: Optional[str] = None
-    level: Optional[str] = None
-    index: Optional[str] = None
-    module: Optional[str] = None
-    submodule: Optional[str] = None
+    timestamp: str | None = None
+    level: str | None = None
+    index: str | None = None
+    module: str | None = None
+    submodule: str | None = None
     message: str = ""
     id: int = 0
     is_new: bool = True
-    parsed_dt: Optional[datetime] = None
+    parsed_dt: datetime | None = None
 
     _id_counter = itertools.count(1)
 
@@ -34,7 +35,7 @@ class LogEntry:
             self.id = next(self._id_counter)
         if not self.index:
             self.index = str(self.id)
-        self._raw_lower: Optional[str] = None
+        self._raw_lower: str | None = None
 
     @property
     def raw_lower(self) -> str:

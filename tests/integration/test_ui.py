@@ -1,15 +1,17 @@
 import pytest
-from PySide6.QtCore import Qt
-from logview.ui.main_window import MainWindow
+
 from logview.models import LogEntry
+from logview.ui.main_window import MainWindow
+
 
 @pytest.fixture
 def app_config():
     return {
-        "server": {"host": "localhost", "port": 9999},
+        "server": {"host": "localhost", "port": 0},
         "display": {"max_lines": 1000},
-        "log_format": {"pattern": r"^\[(?P<timestamp>.*?)\]\s*\[(?P<level>\w+)\]\s*(?P<message>.*)"}
+        "log_format": {"pattern": r"^\[(?P<timestamp>.*?)\]\s*\[(?P<level>\w+)\]\s*(?P<message>.*)"},
     }
+
 
 def test_main_window_init(qtbot, app_config, monkeypatch):
     # Mocking QThread start to avoid starting real receivers during UI test
@@ -20,6 +22,7 @@ def test_main_window_init(qtbot, app_config, monkeypatch):
 
     assert window.windowTitle() == "Log Viewer"
     assert window.tab_widget.currentWidget().model.rowCount() == 0
+
 
 def test_receive_logs(qtbot, app_config, monkeypatch):
     monkeypatch.setattr("logview.ui.components.log_tab.ReceiverWorker.start", lambda self: None)
@@ -33,6 +36,7 @@ def test_receive_logs(qtbot, app_config, monkeypatch):
 
     assert window.tab_widget.currentWidget().model.rowCount() == 1
     assert window.tab_widget.currentWidget().model._all_logs[0].level == "INFO"
+
 
 def test_pause_resume(qtbot, app_config, monkeypatch):
     monkeypatch.setattr("logview.ui.components.log_tab.ReceiverWorker.start", lambda self: None)
@@ -56,6 +60,7 @@ def test_pause_resume(qtbot, app_config, monkeypatch):
     assert window.tab_widget.currentWidget().model.rowCount() == 1
     assert len(window.tab_widget.currentWidget().pending_logs) == 0
 
+
 def test_filtering(qtbot, app_config, monkeypatch):
     monkeypatch.setattr("logview.ui.components.log_tab.ReceiverWorker.start", lambda self: None)
 
@@ -64,7 +69,7 @@ def test_filtering(qtbot, app_config, monkeypatch):
 
     logs = [
         LogEntry(raw="[2023] [INFO] Success", level="INFO", message="Success"),
-        LogEntry(raw="[2023] [ERROR] Failure", level="ERROR", message="Failure")
+        LogEntry(raw="[2023] [ERROR] Failure", level="ERROR", message="Failure"),
     ]
     window.tab_widget.currentWidget().on_logs_received(logs)
 
@@ -78,6 +83,7 @@ def test_filtering(qtbot, app_config, monkeypatch):
 
     assert window.tab_widget.currentWidget().model.rowCount() == 1
     assert window.tab_widget.currentWidget().model.data(window.tab_widget.currentWidget().model.index(0, 3)) == "ERROR"
+
 
 def test_view_toggles(qtbot, app_config, monkeypatch):
     monkeypatch.setattr("logview.ui.components.log_tab.ReceiverWorker.start", lambda self: None)
@@ -100,6 +106,7 @@ def test_view_toggles(qtbot, app_config, monkeypatch):
     assert not window.tab_widget.currentWidget()._detail_panel.isVisible()
     assert not window._show_detail_panel
 
+
 def test_copy_selected_rows(qtbot, app_config, monkeypatch):
     monkeypatch.setattr("logview.ui.components.log_tab.ReceiverWorker.start", lambda self: None)
 
@@ -113,6 +120,7 @@ def test_copy_selected_rows(qtbot, app_config, monkeypatch):
     window._copy_selected_rows()
 
     from PySide6.QtWidgets import QApplication
+
     assert QApplication.clipboard().text() == "[2023] [INFO] Msg"
 
     window._copy_selected_messages()

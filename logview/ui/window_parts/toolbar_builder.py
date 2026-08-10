@@ -1,4 +1,5 @@
-from PySide6.QtWidgets import QToolBar, QStyle, QToolButton
+from PySide6.QtWidgets import QStyle, QToolBar, QToolButton
+
 
 class ToolbarBuilder:
     """Builder for the main window toolbar."""
@@ -40,8 +41,7 @@ class ToolbarBuilder:
 
         # Feature 14: Relative timestamp toggle
         self.action_rel_time = self.toolbar.addAction(
-            self.main_window.style().standardIcon(QStyle.StandardPixmap.SP_DialogResetButton),
-            "Relative Time"
+            self.main_window.style().standardIcon(QStyle.StandardPixmap.SP_DialogResetButton), "Relative Time"
         )
         self.action_rel_time.setCheckable(True)
         self.action_rel_time.setToolTip("Toggle relative timestamps (e.g. '2s ago')")
@@ -55,7 +55,7 @@ class ToolbarBuilder:
         theme_btn = self.toolbar.widgetForAction(self.action_theme)
         if isinstance(theme_btn, QToolButton):
             theme_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-            if hasattr(self.main_window, 'menu_builder') and self.main_window.menu_builder:
+            if hasattr(self.main_window, "menu_builder") and self.main_window.menu_builder:
                 theme_btn.setMenu(self.main_window.menu_builder.theme_menu)
 
         self.action_settings = self.toolbar.addAction(

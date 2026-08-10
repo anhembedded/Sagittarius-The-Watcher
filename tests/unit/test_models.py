@@ -1,5 +1,5 @@
-import pytest
 from logview.models import LogEntry
+
 
 def test_log_entry_auto_id():
     entry1 = LogEntry(raw="test1")
@@ -8,6 +8,7 @@ def test_log_entry_auto_id():
     assert entry1.id is not None
     assert entry2.id is not None
     assert entry1.id != entry2.id
+
 
 def test_log_entry_custom_id():
     entry = LogEntry(raw="test", id="custom_id")

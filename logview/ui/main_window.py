@@ -1,37 +1,34 @@
-import sys
-from typing import Dict, Any, List, Optional
+from typing import Any
 
+from PySide6.QtCore import Qt, QTimer, Slot
+from PySide6.QtGui import QFont, QGuiApplication, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QMainWindow, QVBoxLayout, QWidget,
-    QFileDialog, QMessageBox, QSplitter,
-    QApplication, QDockWidget, QStyle, QSystemTrayIcon,
-    QTabWidget
+    QApplication,
+    QDockWidget,
+    QFileDialog,
+    QMainWindow,
+    QMessageBox,
+    QStyle,
+    QSystemTrayIcon,
+    QTableView,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, Signal, Slot, QTimer
-from PySide6.QtGui import QKeySequence, QShortcut, QGuiApplication, QFont
 
-from logview.ui.log_model import LogModel
-from logview.ui.log_delegate import LogDelegate
-from logview.ui.find_bar import FindBar
-from logview.ui.components import FilterPanel, TimeRangeWidget
-from logview.ui.settings_dialog import SettingsDialog, save_config_to_toml
-from logview.log_parser import LogParser
-from logview.export import export_logs, save_session, load_session
-from logview.models import LogEntry
 import logview.config
-from logview.ui.receiver_worker import ReceiverWorker
+from logview.export import export_logs, load_session, save_session
 from logview.ui.charts_panel import LiveStatsPanel
+from logview.ui.settings_dialog import SettingsDialog, save_config_to_toml
 from logview.ui.window_parts.menu_builder import MenuBuilder
-from logview.ui.window_parts.toolbar_builder import ToolbarBuilder
 from logview.ui.window_parts.status_bar import LogStatusBar
-from logview.ui.views.log_table import LogTableView
-from logview.ui.components.detail_panel import DetailPanel
+from logview.ui.window_parts.toolbar_builder import ToolbarBuilder
 
 
 class MainWindow(QMainWindow):
     """Main Application Window."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__()
         self.config = config
         self.setWindowTitle("Log Viewer")
@@ -43,8 +40,8 @@ class MainWindow(QMainWindow):
         # Initialize Core components
         self._show_detail_panel = True
 
-        self._table_font_size = 10          # Feature 9: current font point size
-        self._connected_clients: int = 0    # Feature 1: active client count
+        self._table_font_size = 10  # Feature 9: current font point size
+        self._connected_clients: int = 0  # Feature 1: active client count
 
         # Setup UI
         self.menu_builder = MenuBuilder(self)
@@ -55,8 +52,6 @@ class MainWindow(QMainWindow):
         self.is_dark_theme = QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark
         self._apply_theme()
         QGuiApplication.styleHints().colorSchemeChanged.connect(self._on_color_scheme_changed)
-
-
 
         # System Tray for Alerts (Feature 3)
         self.tray_icon = None
@@ -74,7 +69,6 @@ class MainWindow(QMainWindow):
 
         # Feature 6: Level counts
 
-
         # 📊 Live Statistics & Charts Panel
         self.stats_dock = QDockWidget("Live Statistics", self)
         self.stats_panel = LiveStatsPanel(self.stats_dock)
@@ -82,7 +76,6 @@ class MainWindow(QMainWindow):
         self.stats_dock.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.stats_dock)
 
-        from logview.ui.components.log_tab import LogTab
         self.add_source_tab("Source 1", self.config)
 
         # Install event filter for Ctrl+Scroll zoom (Feature 9)
@@ -141,6 +134,7 @@ class MainWindow(QMainWindow):
         else:
             try:
                 from qt_material import apply_stylesheet
+
                 apply_stylesheet(app, theme=theme_name)
             except Exception as e:
                 # Fallback to auto if qt-material fails
@@ -153,8 +147,9 @@ class MainWindow(QMainWindow):
     # UI setup
     # ------------------------------------------------------------------
 
-    def add_source_tab(self, name: str, config: Dict[str, Any]):
+    def add_source_tab(self, name: str, config: dict[str, Any]):
         from logview.ui.components.log_tab import LogTab
+
         tab = LogTab(config, self)
         self.tab_widget.addTab(tab, name)
 
@@ -172,19 +167,18 @@ class MainWindow(QMainWindow):
         self.tab_widget.currentChanged.connect(self._on_tab_changed)
         main_layout.addWidget(self.tab_widget)
 
-
     # ------------------------------------------------------------------
     # Slots
     # ------------------------------------------------------------------
 
     @Slot(bool)
     def toggle_toolbar(self, checked: bool):
-        if hasattr(self, 'toolbar_builder') and hasattr(self.toolbar_builder, 'toolbar'):
+        if hasattr(self, "toolbar_builder") and hasattr(self.toolbar_builder, "toolbar"):
             self.toolbar_builder.toolbar.setVisible(checked)
 
     @Slot(bool)
     def toggle_status_bar(self, checked: bool):
-        if hasattr(self, 'status_bar'):
+        if hasattr(self, "status_bar"):
             self.status_bar.setVisible(checked)
 
     @Slot(bool)
@@ -192,21 +186,18 @@ class MainWindow(QMainWindow):
         self._show_detail_panel = checked
         for i in range(self.tab_widget.count()):
             tab = self.tab_widget.widget(i)
-            if hasattr(tab, '_detail_panel'):
+            if hasattr(tab, "_detail_panel"):
                 tab._detail_panel.setVisible(checked)
 
     def toggle_pause(self, paused: bool):
         tab = self.tab_widget.currentWidget()
-        if tab: tab.is_paused = paused
+        if tab:
+            tab.is_paused = paused
         if paused:
-            self.toolbar_builder.action_pause.setIcon(
-                self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
-            )
+            self.toolbar_builder.action_pause.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
             self.toolbar_builder.action_pause.setText("Resume")
         else:
-            self.toolbar_builder.action_pause.setIcon(
-                self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPause)
-            )
+            self.toolbar_builder.action_pause.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPause))
             self.toolbar_builder.action_pause.setText("Pause")
             tab = self.tab_widget.currentWidget()
             if tab and tab.pending_logs:
@@ -241,17 +232,13 @@ class MainWindow(QMainWindow):
         if self._connected_clients == 0:
             self.status_bar.set_client_disconnected()
 
-
-
-
-
     # Feature 2: Detail panel
-
 
     # Feature 14: Relative time
     def _on_relative_time_toggled(self, checked: bool):
         tab = self.tab_widget.currentWidget()
-        if tab: tab.model.toggle_relative_time()
+        if tab:
+            tab.model.toggle_relative_time()
 
     # ------------------------------------------------------------------
     # Feature 1: Status bar updates
@@ -307,9 +294,7 @@ class MainWindow(QMainWindow):
             idx = self.model.index(row, 3)
             self.table_view.setCurrentIndex(idx)
             self.table_view.scrollTo(idx, QTableView.ScrollHint.PositionAtCenter)
-        self._find_bar.set_match_info(
-            self.model.find_current_match(), self.model.find_match_count()
-        )
+        self._find_bar.set_match_info(self.model.find_current_match(), self.model.find_match_count())
 
     @Slot()
     def _on_find_closed(self):
@@ -321,15 +306,15 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def keyPressEvent(self, event):
-        if (event.key() == Qt.Key.Key_C and
-                event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+        if event.key() == Qt.Key.Key_C and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self._copy_selected_rows()
         else:
             super().keyPressEvent(event)
 
     def _copy_selected_rows(self):
         tab = self.tab_widget.currentWidget()
-        if not tab: return
+        if not tab:
+            return
         selected = tab.table_view.selectedIndexes()
         if not selected:
             return
@@ -346,7 +331,8 @@ class MainWindow(QMainWindow):
 
     def _copy_selected_messages(self):
         tab = self.tab_widget.currentWidget()
-        if not tab: return
+        if not tab:
+            return
         selected = tab.table_view.selectedIndexes()
         if not selected:
             return
@@ -382,13 +368,12 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def export_logs(self):
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Export Logs", "", "Log Files (*.log);;JSON Files (*.json)"
-        )
+        file_path, _ = QFileDialog.getSaveFileName(self, "Export Logs", "", "Log Files (*.log);;JSON Files (*.json)")
         if file_path:
             try:
                 tab = self.tab_widget.currentWidget()
-                if not tab: return
+                if not tab:
+                    return
                 logs_to_export = tab.model.get_all_logs()
                 format_type = "json" if file_path.endswith(".json") else "text"
                 export_logs(logs_to_export, file_path, format_type)
@@ -398,13 +383,12 @@ class MainWindow(QMainWindow):
 
     def save_session(self):
         """Feature 15: Save all logs to a session file."""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Save Session", "", "Log Viewer Session (*.lvsession)"
-        )
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Session", "", "Log Viewer Session (*.lvsession)")
         if file_path:
             try:
                 tab = self.tab_widget.currentWidget()
-                if not tab: return
+                if not tab:
+                    return
                 save_session(tab.model.get_all_logs(), file_path)
                 self.statusBar().showMessage(f"Session saved to {file_path}", 3000)
             except Exception as e:
@@ -412,19 +396,16 @@ class MainWindow(QMainWindow):
 
     def load_session(self):
         """Feature 15: Load logs from a session file."""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Load Session", "", "Log Viewer Session (*.lvsession)"
-        )
+        file_path, _ = QFileDialog.getOpenFileName(self, "Load Session", "", "Log Viewer Session (*.lvsession)")
         if file_path:
             try:
                 entries = load_session(file_path)
                 tab = self.tab_widget.currentWidget()
-                if not tab: return
+                if not tab:
+                    return
                 tab.model.clear_logs()
                 tab.model.add_logs(entries)
-                self.statusBar().showMessage(
-                    f"Loaded {len(entries):,} log entries from session", 3000
-                )
+                self.statusBar().showMessage(f"Loaded {len(entries):,} log entries from session", 3000)
             except Exception as e:
                 QMessageBox.critical(self, "Load Failed", str(e))
 
@@ -432,9 +413,9 @@ class MainWindow(QMainWindow):
     # Settings
     # ------------------------------------------------------------------
 
-
     def _on_new_source_tab(self):
         import copy
+
         new_config = copy.deepcopy(self.config)
         # We can prompt the user for a new port, but to keep it under 50 lines without creating a new dialog class,
         # we can just increment the default port and let them change it in settings.
@@ -454,12 +435,13 @@ class MainWindow(QMainWindow):
         # Detect if connection settings changed
         old_server = self.config.get("server", {})
         new_server = new_config.get("server", {})
-        connection_changed = (
-            old_server.get("host") != new_server.get("host") or
-            old_server.get("port") != new_server.get("port")
-        )
+        connection_changed = old_server.get("host") != new_server.get("host") or old_server.get(
+            "port"
+        ) != new_server.get("port")
 
-        format_changed = self.config.get("log_format", {}).get("pattern") != new_config.get("log_format", {}).get("pattern")
+        format_changed = self.config.get("log_format", {}).get("pattern") != new_config.get("log_format", {}).get(
+            "pattern"
+        )
         alerts_changed = self.config.get("alerts", {}).get("pattern") != new_config.get("alerts", {}).get("pattern")
 
         # Save to TOML
@@ -474,7 +456,8 @@ class MainWindow(QMainWindow):
         # Live-update colors in the model
         for i in range(self.tab_widget.count()):
             tab = self.tab_widget.widget(i)
-            if tab: tab.model.update_colors(new_config.get("colors", {}))
+            if tab:
+                tab.model.update_colors(new_config.get("colors", {}))
 
         # Restart receiver if connection settings changed
         if connection_changed or format_changed or alerts_changed:
@@ -483,8 +466,9 @@ class MainWindow(QMainWindow):
                 tab = self.tab_widget.widget(i)
                 if tab:
                     tab.stop()
-                    from logview.ui.receiver_worker import ReceiverWorker
                     from logview.log_parser import LogParser
+                    from logview.ui.receiver_worker import ReceiverWorker
+
                     # Ensure the thread is safely terminated
                     if tab.receiver_thread:
                         tab.receiver_thread.wait()

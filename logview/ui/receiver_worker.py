@@ -1,11 +1,11 @@
 import asyncio
-from typing import Dict, Any
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
 from PySide6.QtCore import QThread, Signal
 
-from logview.receiver import TCPServerReceiver, FileTailReceiver
 from logview.log_parser import LogParser
+from logview.receiver import FileTailReceiver, TCPServerReceiver
 
 
 class ReceiverWorker(QThread):
@@ -13,12 +13,13 @@ class ReceiverWorker(QThread):
     Worker thread to run the async log receivers.
     # Adapter/Observer Pattern: Adapts the async receivers to Qt's signal/slot mechanism.
     """
+
     logs_received = Signal(list)
     error_occurred = Signal(str)
-    client_connected = Signal(str)       # address string
-    client_disconnected = Signal(str)    # address string
+    client_connected = Signal(str)  # address string
+    client_disconnected = Signal(str)  # address string
 
-    def __init__(self, config: Dict[str, Any], parser: LogParser):
+    def __init__(self, config: dict[str, Any], parser: LogParser):
         super().__init__()
         self.config = config
         self.parser = parser
@@ -34,10 +35,8 @@ class ReceiverWorker(QThread):
 
         self._async_queue = asyncio.Queue()
 
-        if "tail_file" in self.config and self.config["tail_file"]:
-            self._receivers.append(
-                FileTailReceiver(self.config["tail_file"], self.parser, self._async_queue)
-            )
+        if self.config.get("tail_file"):
+            self._receivers.append(FileTailReceiver(self.config["tail_file"], self.parser, self._async_queue))
         else:
             host = self.config.get("server", {}).get("host", "localhost")
             port = self.config.get("server", {}).get("port", 9999)

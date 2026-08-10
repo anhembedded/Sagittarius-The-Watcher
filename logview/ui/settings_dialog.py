@@ -1,17 +1,26 @@
-from typing import Dict, Any, Optional
 import copy
 import json
-
-from PySide6.QtWidgets import (
-    QDialog, QDialogButtonBox, QTabWidget, QWidget, QFormLayout,
-    QVBoxLayout, QHBoxLayout, QLineEdit, QSpinBox, QPushButton,
-    QLabel, QFrame, QScrollArea, QSizePolicy, QComboBox
-)
-from PySide6.QtGui import QColor
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QColorDialog
 import re
+from typing import Any
 
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (
+    QColorDialog,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QSpinBox,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 LOG_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
@@ -56,8 +65,7 @@ class ColorButton(QPushButton):
 
     def _pick_color(self):
         initial = QColor(self._color) if self._color else QColor(Qt.GlobalColor.white)
-        color = QColorDialog.getColor(initial, self, "Pick Color",
-                                      QColorDialog.ColorDialogOption.ShowAlphaChannel)
+        color = QColorDialog.getColor(initial, self, "Pick Color", QColorDialog.ColorDialogOption.ShowAlphaChannel)
         if color.isValid():
             self.set_color(color.name())  # #RRGGBB
 
@@ -100,14 +108,14 @@ class LevelColorRow(QWidget):
         self.bg_btn.clear_color()
         self.fg_btn.clear_color()
 
-    def get_colors(self) -> Dict[str, str]:
+    def get_colors(self) -> dict[str, str]:
         return {"bg": self.bg_btn.get_color(), "fg": self.fg_btn.get_color()}
 
 
 class SettingsDialog(QDialog):
     """Settings dialog with Connection and Log Colors tabs."""
 
-    def __init__(self, config: Dict[str, Any], parent=None):
+    def __init__(self, config: dict[str, Any], parent=None):
         super().__init__(parent)
         self.setWindowTitle("Settings")
         self.setMinimumWidth(420)
@@ -125,9 +133,7 @@ class SettingsDialog(QDialog):
         root_layout.addWidget(tabs)
 
         # Buttons
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         root_layout.addWidget(buttons)
@@ -183,7 +189,7 @@ class SettingsDialog(QDialog):
         outer.addWidget(line)
 
         colors_cfg = self._config.get("colors", {})
-        self._level_rows: Dict[str, LevelColorRow] = {}
+        self._level_rows: dict[str, LevelColorRow] = {}
 
         for level in LOG_LEVELS:
             level_colors = colors_cfg.get(level, {})
@@ -243,8 +249,8 @@ class SettingsDialog(QDialog):
         presets = {
             "Apache": r'^(?P<host>\S+) \S+ \S+ \[(?P<timestamp>[\w:/]+\s[+\-]\d{4})\] "(?P<request>.*?)" (?P<status>\d{3}) (?P<size>\S+)',
             "Nginx": r'^(?P<host>\S+) - \S+ \[(?P<timestamp>[\w:/]+\s[+\-]\d{4})\] "(?P<request>.*?)" (?P<status>\d{3}) (?P<size>\S+)',
-            "Spring Boot": r'^(?P<timestamp>\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\w+)\s+\d+\s+---\s+\[.*?\]\s+.*?\s+:\s+(?P<message>.*)',
-            "Syslog": r'^(?P<timestamp>\w{3}\s+\d+\s\d{2}:\d{2}:\d{2})\s+(?P<host>\S+)\s+(?P<app>\S+):\s+(?P<message>.*)'
+            "Spring Boot": r"^(?P<timestamp>\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\w+)\s+\d+\s+---\s+\[.*?\]\s+.*?\s+:\s+(?P<message>.*)",
+            "Syslog": r"^(?P<timestamp>\w{3}\s+\d+\s\d{2}:\d{2}:\d{2})\s+(?P<host>\S+)\s+(?P<app>\S+):\s+(?P<message>.*)",
         }
         if text in presets:
             self._regex_edit.setText(presets[text])
@@ -273,7 +279,7 @@ class SettingsDialog(QDialog):
     # Result extraction
     # ------------------------------------------------------------------
 
-    def get_updated_config(self) -> Dict[str, Any]:
+    def get_updated_config(self) -> dict[str, Any]:
         """Returns the config dict updated with values from the dialog."""
         cfg = copy.deepcopy(self._config)
 
@@ -301,38 +307,38 @@ class SettingsDialog(QDialog):
         return cfg
 
 
-def save_config_to_toml(config: Dict[str, Any], path: str):
+def save_config_to_toml(config: dict[str, Any], path: str):
     """Writes the relevant config sections back to logview.toml."""
     lines = []
 
     server = config.get("server", {})
     lines.append("[server]")
-    lines.append(f'host = {json.dumps(server.get("host", "localhost"), ensure_ascii=False)}')
-    lines.append(f'port = {server.get("port", 9999)}')
+    lines.append(f"host = {json.dumps(server.get('host', 'localhost'), ensure_ascii=False)}")
+    lines.append(f"port = {server.get('port', 9999)}")
     lines.append("")
 
     display = config.get("display", {})
     lines.append("[display]")
-    lines.append(f'max_lines = {display.get("max_lines", 10000)}')
+    lines.append(f"max_lines = {display.get('max_lines', 10000)}")
     lines.append("")
 
     log_format = config.get("log_format", {})
     pattern = log_format.get("pattern", "")
     lines.append("[log_format]")
-    lines.append(f'pattern = {json.dumps(pattern, ensure_ascii=False)}')
+    lines.append(f"pattern = {json.dumps(pattern, ensure_ascii=False)}")
     lines.append("")
 
     colors = config.get("colors", {})
     for level in LOG_LEVELS:
         level_colors = colors.get(level, {})
         lines.append(f"[colors.{level}]")
-        lines.append(f'bg = {json.dumps(level_colors.get("bg", ""), ensure_ascii=False)}')
-        lines.append(f'fg = {json.dumps(level_colors.get("fg", ""), ensure_ascii=False)}')
+        lines.append(f"bg = {json.dumps(level_colors.get('bg', ''), ensure_ascii=False)}")
+        lines.append(f"fg = {json.dumps(level_colors.get('fg', ''), ensure_ascii=False)}")
         lines.append("")
 
     theme = config.get("theme", {})
     lines.append("[theme]")
-    lines.append(f'name = {json.dumps(theme.get("name", "auto"), ensure_ascii=False)}')
+    lines.append(f"name = {json.dumps(theme.get('name', 'auto'), ensure_ascii=False)}")
     lines.append("")
 
     with open(path, "w", encoding="utf-8") as f:

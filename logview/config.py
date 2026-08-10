@@ -1,6 +1,6 @@
 import argparse
 import os
-from typing import Any, Dict
+from typing import Any
 
 DEFAULT_CONFIG_PATH = "logview.toml"
 DEFAULT_CONFIG_CONTENT = """[server]
@@ -14,6 +14,7 @@ max_lines = 10000
 pattern = "^(?:\\\\[(?P<timestamp>.*?)\\\\])?\\\\s*(?:\\\\[(?P<level>\\\\w+)\\\\])?\\\\s*(?:\\\\[(?P<module>\\\\w+)\\\\])?\\\\s*(?:\\\\[(?P<submodule>\\\\w+)\\\\])?\\\\s*(?P<message>.*)"
 """
 
+
 def parse_args() -> argparse.Namespace:
     """Parses command line arguments."""
     parser = argparse.ArgumentParser(description="Log Viewer TUI")
@@ -24,7 +25,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_toml(path: str) -> Dict[str, Any]:
+def load_toml(path: str) -> dict[str, Any]:
     """Loads a TOML configuration file with fallbacks.
 
     Args:
@@ -35,6 +36,7 @@ def load_toml(path: str) -> Dict[str, Any]:
     """
     try:
         import tomllib
+
         with open(path, "rb") as f:
             return tomllib.load(f)
     except ImportError:
@@ -42,6 +44,7 @@ def load_toml(path: str) -> Dict[str, Any]:
 
     try:
         import tomli
+
         with open(path, "rb") as f:
             return tomli.load(f)
     except ImportError:
@@ -75,7 +78,7 @@ def load_toml(path: str) -> Dict[str, Any]:
     return config
 
 
-def get_config() -> Dict[str, Any]:
+def get_config() -> dict[str, Any]:
     """Retrieves the configuration, merging TOML and command line arguments.
 
     Returns:
@@ -95,7 +98,9 @@ def get_config() -> Dict[str, Any]:
     if "display" not in config:
         config["display"] = {"max_lines": 10000}
     if "log_format" not in config:
-        config["log_format"] = {"pattern": r"^(?:\[(?P<timestamp>.*?)\])?\s*(?:\[(?P<level>\w+)\])?\s*(?:\[(?P<module>\w+)\])?\s*(?:\[(?P<submodule>\w+)\])?\s*(?P<message>.*)"}
+        config["log_format"] = {
+            "pattern": r"^(?:\[(?P<timestamp>.*?)\])?\s*(?:\[(?P<level>\w+)\])?\s*(?:\[(?P<module>\w+)\])?\s*(?:\[(?P<submodule>\w+)\])?\s*(?P<message>.*)"
+        }
     else:
         # If read from TOML string, it should already be parsed correctly.
         # Ensure we have a string.

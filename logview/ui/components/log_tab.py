@@ -1,35 +1,41 @@
 import re
-from typing import List, Dict, Any
+from typing import Any
 
+from PySide6.QtCore import Qt, QTimer, Slot
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QPushButton
+    QHBoxLayout,
+    QPushButton,
+    QSplitter,
+    QSystemTrayIcon,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, Slot, QTimer
-from PySide6.QtWidgets import QSystemTrayIcon
 
-from logview.ui.log_model import LogModel, LogFilterProxyModel, COL_MESSAGE
-from logview.ui.log_delegate import LogDelegate
-from logview.ui.find_bar import FindBar
-from logview.ui.components import FilterPanel, TimeRangeWidget
-from logview.ui.components.detail_panel import DetailPanel
-from logview.ui.views.log_table import LogTableView
 from logview.log_parser import LogParser
 from logview.models import LogEntry
-from logview.ui.receiver_worker import ReceiverWorker
+from logview.ui.components import FilterPanel, TimeRangeWidget
+from logview.ui.components.detail_panel import DetailPanel
 from logview.ui.components.heatmap_widget import LogHeatmapWidget
+from logview.ui.find_bar import FindBar
+from logview.ui.log_delegate import LogDelegate
+from logview.ui.log_model import COL_MESSAGE, LogFilterProxyModel, LogModel
+from logview.ui.receiver_worker import ReceiverWorker
+from logview.ui.views.log_table import LogTableView
 
 
 class LogTab(QWidget):
-    def __init__(self, config: Dict[str, Any], main_window, parent=None):
+    def __init__(self, config: dict[str, Any], main_window, parent=None):
         super().__init__(parent)
         self.config = config
         self.main_window = main_window
         self.is_paused = False
-        self.pending_logs: List[LogEntry] = []
+        self.pending_logs: list[LogEntry] = []
         self._log_rate_counter = 0
 
         self.parser = LogParser(config.get("log_format", {}).get("pattern", ""))
-        self.source_model = LogModel(self, max_lines=config.get("display", {}).get("max_lines", 10000), color_config=config.get("colors", {}))
+        self.source_model = LogModel(
+            self, max_lines=config.get("display", {}).get("max_lines", 10000), color_config=config.get("colors", {})
+        )
         self.model = LogFilterProxyModel(self)
         self.model.setSourceModel(self.source_model)
         self.model.counts_changed.connect(self._on_counts_changed)
@@ -107,10 +113,10 @@ class LogTab(QWidget):
         self.table_view.setItemDelegate(self._delegate)
 
         # Column widths (ensuring no truncation for ISO timestamps, module names & headers)
-        self.table_view.setColumnWidth(0, 32)   # Bookmark
-        self.table_view.setColumnWidth(1, 70)   # Index
+        self.table_view.setColumnWidth(0, 32)  # Bookmark
+        self.table_view.setColumnWidth(1, 70)  # Index
         self.table_view.setColumnWidth(2, 220)  # Timestamp
-        self.table_view.setColumnWidth(3, 90)   # Level
+        self.table_view.setColumnWidth(3, 90)  # Level
         self.table_view.setColumnWidth(4, 150)  # Module
         self.table_view.setColumnWidth(5, 150)  # Submodule
 
@@ -120,7 +126,7 @@ class LogTab(QWidget):
 
         # Feature 2: Detail Panel
         self._detail_panel = DetailPanel()
-        if hasattr(self.main_window, '_show_detail_panel'):
+        if hasattr(self.main_window, "_show_detail_panel"):
             self._detail_panel.setVisible(self.main_window._show_detail_panel)
         splitter.addWidget(self._detail_panel)
 
@@ -154,8 +160,14 @@ class LogTab(QWidget):
             view_h = self.table_view.height()
 
             # Align with bottom right corner, above scrollbars if visible
-            scrollbar_h = self.table_view.horizontalScrollBar().height() if self.table_view.horizontalScrollBar().isVisible() else 0
-            scrollbar_w = self.table_view.verticalScrollBar().width() if self.table_view.verticalScrollBar().isVisible() else 0
+            scrollbar_h = (
+                self.table_view.horizontalScrollBar().height()
+                if self.table_view.horizontalScrollBar().isVisible()
+                else 0
+            )
+            scrollbar_w = (
+                self.table_view.verticalScrollBar().width() if self.table_view.verticalScrollBar().isVisible() else 0
+            )
 
             x = view_w - btn_w - 20 - scrollbar_w
             y = view_h - btn_h - 20 - scrollbar_h
@@ -189,9 +201,7 @@ class LogTab(QWidget):
             idx = self.model.index(row, COL_MESSAGE)
             self.table_view.setCurrentIndex(idx)
             self.table_view.scrollTo(idx, LogTableView.ScrollHint.PositionAtCenter)
-        self._find_bar.set_match_info(
-            self.model.find_current_match(), self.model.find_match_count()
-        )
+        self._find_bar.set_match_info(self.model.find_current_match(), self.model.find_match_count())
 
     @Slot()
     def _on_find_closed(self):
@@ -199,7 +209,7 @@ class LogTab(QWidget):
         self.table_view.viewport().update()
 
     @Slot(list)
-    def on_logs_received(self, logs: List[LogEntry]):
+    def on_logs_received(self, logs: list[LogEntry]):
         self._log_rate_counter += len(logs)
         if self.is_paused:
             self.pending_logs.extend(logs)
@@ -219,7 +229,7 @@ class LogTab(QWidget):
                                 "Log Alert",
                                 f"Alert matched in log: {(log.message or log.raw)[:100]}",
                                 QSystemTrayIcon.MessageIcon.Warning,
-                                2000
+                                2000,
                             )
                 except re.error:
                     pass
@@ -234,7 +244,7 @@ class LogTab(QWidget):
         scrollbar = self.table_view.verticalScrollBar()
         # Robust Scroll Threshold: Disable autoscroll if scrolled up more than 10 pixels
         self.auto_scroll = value >= scrollbar.maximum() - 10
-        if hasattr(self.main_window, 'status_bar'):
+        if hasattr(self.main_window, "status_bar"):
             # "Scroll Lock: ON" means auto_scroll is disabled (user is scrolling up).
             # "Scroll Lock: OFF" means auto_scroll is active.
             self.main_window.status_bar.set_scroll_lock(not self.auto_scroll)

@@ -1,9 +1,14 @@
-from PySide6.QtWidgets import (
-    QStyledItemDelegate, QStyleOptionViewItem, QApplication, QStyle
-)
-from PySide6.QtGui import QPainter, QColor, QTextCharFormat, QTextCursor, QTextDocument
-from PySide6.QtCore import Qt, QModelIndex, QRectF
 import re
+
+from PySide6.QtCore import QModelIndex, Qt
+from PySide6.QtGui import QColor, QPainter, QTextCharFormat, QTextCursor, QTextDocument
+from PySide6.QtWidgets import (
+    QApplication,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+)
+
 from logview.ui.log_model import COL_MESSAGE
 
 
@@ -55,9 +60,7 @@ class LogDelegate(QStyledItemDelegate):
             opt.text = ""
             style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, opt.widget)
 
-            text_rect = style.subElementRect(
-                QStyle.SubElement.SE_ItemViewItemText, opt, opt.widget
-            )
+            text_rect = style.subElementRect(QStyle.SubElement.SE_ItemViewItemText, opt, opt.widget)
             painter.setClipRect(text_rect)
 
             doc = QTextDocument()
@@ -96,8 +99,7 @@ class LogDelegate(QStyledItemDelegate):
             if opt.state & QStyle.StateFlag.State_Selected:
                 ctx.palette.setColor(
                     ctx.palette.ColorRole.Text,
-                    opt.palette.color(opt.palette.ColorGroup.Active,
-                                      opt.palette.ColorRole.HighlightedText)
+                    opt.palette.color(opt.palette.ColorGroup.Active, opt.palette.ColorRole.HighlightedText),
                 )
             else:
                 if fg_brush:

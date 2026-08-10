@@ -1,18 +1,21 @@
-import pytest
+import json
 import os
 import tempfile
-import json
-from PySide6.QtCore import Qt
-from logview.ui.main_window import MainWindow
+
+import pytest
+
 from logview.models import LogEntry
+from logview.ui.main_window import MainWindow
+
 
 @pytest.fixture
 def app_config():
     return {
         "server": {"host": "127.0.0.1", "port": 0},
         "display": {"max_lines": 1000},
-        "log_format": {"pattern": r"^\[(?P<timestamp>.*?)\]\s*\[(?P<level>\w+)\]\s*(?P<message>.*)"}
+        "log_format": {"pattern": r"^\[(?P<timestamp>.*?)\]\s*\[(?P<level>\w+)\]\s*(?P<message>.*)"},
     }
+
 
 @pytest.fixture
 def populated_tab(qtbot, app_config, monkeypatch):
@@ -24,11 +27,12 @@ def populated_tab(qtbot, app_config, monkeypatch):
 
     logs = [
         LogEntry(raw="[2023] [INFO] Msg1", level="INFO", message="Msg1"),
-        LogEntry(raw="[2023] [ERROR] Msg2", level="ERROR", message="Msg2")
+        LogEntry(raw="[2023] [ERROR] Msg2", level="ERROR", message="Msg2"),
     ]
 
     current_tab.on_logs_received(logs)
     return current_tab, window
+
 
 def test_export_to_text(qtbot, populated_tab, monkeypatch):
     current_tab, window = populated_tab
@@ -51,6 +55,7 @@ def test_export_to_text(qtbot, populated_tab, monkeypatch):
         assert "[2023] [ERROR] Msg2" in content
     finally:
         os.unlink(filepath)
+
 
 def test_save_load_session(qtbot, populated_tab, monkeypatch):
     current_tab, window = populated_tab
@@ -86,6 +91,7 @@ def test_save_load_session(qtbot, populated_tab, monkeypatch):
     finally:
         os.unlink(filepath)
 
+
 def test_custom_regex(qtbot, app_config):
     # This tests the settings dialog logic directly
     from logview.ui.settings_dialog import SettingsDialog
@@ -104,10 +110,12 @@ def test_custom_regex(qtbot, app_config):
     assert "ERROR" in dialog._test_result_label.text()
     assert "Something went wrong" in dialog._test_result_label.text()
 
+
 def test_change_colors(qtbot, populated_tab):
     current_tab, window = populated_tab
 
     from logview.ui.settings_dialog import SettingsDialog
+
     dialog = SettingsDialog(window.config, window)
 
     # Modify config to change ERROR color

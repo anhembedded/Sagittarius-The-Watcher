@@ -1,17 +1,23 @@
-import pytest
-import os
 import json
+import os
 import tempfile
 from datetime import datetime
+
+import pytest
+
+from logview.export import export_logs, load_session, save_session
 from logview.models import LogEntry
-from logview.export import export_logs, save_session, load_session
+
 
 @pytest.fixture
 def sample_logs():
     return [
         LogEntry(raw="raw1", timestamp="t1", level="INFO", message="msg1"),
-        LogEntry(raw="raw2", timestamp="t2", level="ERROR", message="msg2", parsed_dt=datetime(2023, 10, 26, 10, 20, 30))
+        LogEntry(
+            raw="raw2", timestamp="t2", level="ERROR", message="msg2", parsed_dt=datetime(2023, 10, 26, 10, 20, 30)
+        ),
     ]
+
 
 def test_export_logs_text(sample_logs):
     with tempfile.NamedTemporaryFile("w", delete=False) as f:
@@ -26,6 +32,7 @@ def test_export_logs_text(sample_logs):
     finally:
         os.unlink(temp_path)
 
+
 def test_export_logs_json(sample_logs):
     with tempfile.NamedTemporaryFile("w", delete=False) as f:
         temp_path = f.name
@@ -39,6 +46,7 @@ def test_export_logs_json(sample_logs):
         assert data[1]["message"] == "msg2"
     finally:
         os.unlink(temp_path)
+
 
 def test_save_load_session(sample_logs):
     with tempfile.NamedTemporaryFile("w", suffix=".lvsession", delete=False) as f:
@@ -62,6 +70,7 @@ def test_save_load_session(sample_logs):
         if os.path.exists(temp_path):
             os.unlink(temp_path)
 
+
 def test_save_session_appends_extension(sample_logs):
     with tempfile.NamedTemporaryFile("w", delete=False) as f:
         base_path = f.name
@@ -81,6 +90,7 @@ def test_save_session_appends_extension(sample_logs):
         if os.path.exists(base_path + ".lvsession"):
             os.unlink(base_path + ".lvsession")
 
+
 def test_load_session_handles_invalid_date():
     with tempfile.NamedTemporaryFile("w", suffix=".lvsession", delete=False) as f:
         temp_path = f.name
@@ -95,7 +105,7 @@ def test_load_session_handles_invalid_date():
                     "message": "msg",
                     "parsed_dt": "not-a-valid-iso-date",
                 }
-            ]
+            ],
         }
         json.dump(data, f)
 

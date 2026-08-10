@@ -1,16 +1,19 @@
 import pytest
-from PySide6.QtCore import Qt, QItemSelectionModel
+from PySide6.QtCore import QItemSelectionModel
 from PySide6.QtWidgets import QApplication
-from logview.ui.main_window import MainWindow
+
 from logview.models import LogEntry
+from logview.ui.main_window import MainWindow
+
 
 @pytest.fixture
 def app_config():
     return {
         "server": {"host": "127.0.0.1", "port": 0},
         "display": {"max_lines": 1000},
-        "log_format": {"pattern": r"^\[(?P<timestamp>.*?)\]\s*\[(?P<level>\w+)\]\s*(?P<message>.*)"}
+        "log_format": {"pattern": r"^\[(?P<timestamp>.*?)\]\s*\[(?P<level>\w+)\]\s*(?P<message>.*)"},
     }
+
 
 @pytest.fixture
 def populated_tab(qtbot, app_config, monkeypatch):
@@ -25,34 +28,45 @@ def populated_tab(qtbot, app_config, monkeypatch):
 
     logs = [
         LogEntry(raw="[2023] [INFO] Normal message", level="INFO", message="Normal message"),
-        LogEntry(raw='{"timestamp": "2023", "level": "DEBUG", "message": "JSON message", "data": {"key": "value"}}', level="DEBUG", message='{"timestamp": "2023", "level": "DEBUG", "message": "JSON message", "data": {"key": "value"}}')
+        LogEntry(
+            raw='{"timestamp": "2023", "level": "DEBUG", "message": "JSON message", "data": {"key": "value"}}',
+            level="DEBUG",
+            message='{"timestamp": "2023", "level": "DEBUG", "message": "JSON message", "data": {"key": "value"}}',
+        ),
     ]
 
     current_tab.on_logs_received(logs)
     return current_tab, window
+
 
 def test_inspect_log_details(qtbot, populated_tab):
     current_tab, window = populated_tab
 
     # Select first row
     model_index = current_tab.model.index(0, 0)
-    current_tab.table_view.selectionModel().setCurrentIndex(model_index, QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows)
+    current_tab.table_view.selectionModel().setCurrentIndex(
+        model_index, QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows
+    )
 
     # Verify detail panel updates (DetailPanel inherits QTextEdit)
     assert "Normal message" in current_tab._detail_panel.toPlainText()
     assert "INFO" in current_tab._detail_panel.toPlainText()
+
 
 def test_json_pretty_print(qtbot, populated_tab):
     current_tab, window = populated_tab
 
     # Select JSON row
     model_index = current_tab.model.index(1, 0)
-    current_tab.table_view.selectionModel().setCurrentIndex(model_index, QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows)
+    current_tab.table_view.selectionModel().setCurrentIndex(
+        model_index, QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows
+    )
 
     # Verify JSON formatting (should contain indentation)
     panel_text = current_tab._detail_panel.toPlainText()
     assert '"key": "value"' in panel_text
     assert '\n        "key"' in panel_text
+
 
 def test_relative_time_toggle(qtbot, populated_tab):
     current_tab, window = populated_tab
@@ -65,6 +79,7 @@ def test_relative_time_toggle(qtbot, populated_tab):
 
     assert current_tab.model._show_relative_time is True
 
+
 def test_font_zooming(qtbot, populated_tab):
     current_tab, window = populated_tab
 
@@ -75,6 +90,7 @@ def test_font_zooming(qtbot, populated_tab):
 
     window._zoom_font(-2)
     assert window._table_font_size == initial_size - 1
+
 
 def test_copy_selected(qtbot, populated_tab):
     current_tab, window = populated_tab
@@ -89,6 +105,7 @@ def test_copy_selected(qtbot, populated_tab):
     assert copied_text is not None
     assert "Normal message" in copied_text
     assert "JSON message" in copied_text
+
 
 def test_theme_switching(qtbot, populated_tab):
     current_tab, window = populated_tab

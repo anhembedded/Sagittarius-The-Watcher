@@ -1,7 +1,16 @@
+from PySide6.QtCore import QDateTime, Qt, Signal
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDateTimeEdit,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QWidget,
+)
+
 from logview.ui.components.detail_panel import DetailPanel
-from PySide6.QtWidgets import (QWidget, QHBoxLayout, QLineEdit, QComboBox,
-                                 QCheckBox, QLabel, QDateTimeEdit, QFrame)
-from PySide6.QtCore import Signal, QDateTime, Qt
 
 
 class FilterPanel(QWidget):

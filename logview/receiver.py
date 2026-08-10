@@ -1,9 +1,7 @@
 import asyncio
-import sys
-from typing import Optional
-
-import os
 import io
+import os
+import sys
 
 from logview.log_parser import LogParser, MultiLineBuffer
 
@@ -16,7 +14,7 @@ class FileTailReceiver:
         self.parser = parser
         self.queue = queue
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
 
     async def start(self):
         """Starts the receiver."""
@@ -50,7 +48,7 @@ class FileTailReceiver:
         if not self._running:
             return
 
-        with open(self.filepath, 'r', encoding='utf-8', errors='replace') as f:
+        with open(self.filepath, "r", encoding="utf-8", errors="replace") as f:
             # Go to the end of the file
             f.seek(0, io.SEEK_END)
 
@@ -82,8 +80,7 @@ class FileTailReceiver:
 class TCPServerReceiver:
     """Receives logs from a TCP socket or stdin and pushes parsed entries to a queue."""
 
-    def __init__(self, host: str, port: int, parser: LogParser, queue: asyncio.Queue,
-                 listen_stdin: bool = False):
+    def __init__(self, host: str, port: int, parser: LogParser, queue: asyncio.Queue, listen_stdin: bool = False):
         """Initializes the receiver.
 
         Args:
@@ -98,7 +95,7 @@ class TCPServerReceiver:
         self.parser = parser
         self.queue = queue
         self.listen_stdin = listen_stdin
-        self.server: Optional[asyncio.AbstractServer] = None
+        self.server: asyncio.AbstractServer | None = None
         self._running = False
 
         # Callbacks for connection events (set by ReceiverWorker for status bar)
@@ -112,9 +109,7 @@ class TCPServerReceiver:
             # Run stdin reader in a separate task or executor to not block
             asyncio.create_task(self._read_stdin())
         else:
-            self.server = await asyncio.start_server(
-                self.handle_client, self.host, self.port
-            )
+            self.server = await asyncio.start_server(self.handle_client, self.host, self.port)
             # The server will run in the background
 
     async def stop(self):
@@ -154,7 +149,7 @@ class TCPServerReceiver:
         ...
         """
         print("DEBUG: handle_client called!")
-        addr = writer.get_extra_info('peername', ('?', 0))
+        addr = writer.get_extra_info("peername", ("?", 0))
         addr_str = f"{addr[0]}:{addr[1]}"
         buf = MultiLineBuffer(self.parser)
 
@@ -169,17 +164,17 @@ class TCPServerReceiver:
                     if not line_bytes:
                         print("DEBUG: Client disconnected (EOF)")
                         break
-                    line = line_bytes.decode('utf-8', errors='replace')
+                    line = line_bytes.decode("utf-8", errors="replace")
                     print(f"DEBUG: Read line: {line!r}")
                     entry = buf.feed(line)
                     if entry:
-                        print(f"DEBUG: Fed to buf, got entry")
+                        print("DEBUG: Fed to buf, got entry")
                         await self._put_entry(entry)
                 except asyncio.TimeoutError:
                     # Inactivity timeout reached, flush pending log
                     entry = buf.flush()
                     if entry:
-                        print(f"DEBUG: Timeout flush, got entry")
+                        print("DEBUG: Timeout flush, got entry")
                         await self._put_entry(entry)
         except asyncio.CancelledError:
             pass

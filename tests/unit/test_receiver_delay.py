@@ -1,16 +1,20 @@
-import pytest
 import asyncio
 import os
 import tempfile
-from logview.log_parser import LogParser, MultiLineBuffer
+
+import pytest
+
+from logview.log_parser import LogParser
 from logview.receiver import FileTailReceiver
 
 # Use the standard log format
 PATTERN = r"(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (?P<level>\w+) (?P<message>.*)"
 
+
 @pytest.fixture
 def parser():
     return LogParser(PATTERN)
+
 
 @pytest.fixture
 def temp_log_file():
@@ -18,6 +22,7 @@ def temp_log_file():
     os.close(fd)
     yield path
     os.remove(path)
+
 
 @pytest.mark.asyncio
 async def test_multiline_buffer_holds_last_log_indefinitely(parser, temp_log_file):
@@ -67,8 +72,8 @@ async def test_multiline_buffer_holds_last_log_indefinitely(parser, temp_log_fil
 
     # Don't wait too long, write the next lines immediately (before the timeout)
     with open(temp_log_file, "a") as f:
-        f.write("  File \"main.py\", line 42\n")
-        f.write("    raise ValueError(\"Bad input\")\n")
+        f.write('  File "main.py", line 42\n')
+        f.write('    raise ValueError("Bad input")\n')
         f.flush()
 
     # Now wait for the timeout to trigger and flush the multi-line entry
@@ -78,10 +83,11 @@ async def test_multiline_buffer_holds_last_log_indefinitely(parser, temp_log_fil
     ml_entry = await queue.get()
     assert ml_entry.level == "WARNING"
     assert "Stack trace below:" in ml_entry.message
-    assert "File \"main.py\"" in ml_entry.message
+    assert 'File "main.py"' in ml_entry.message
     assert "raise ValueError" in ml_entry.message
 
     await receiver.stop()
+
 
 @pytest.mark.asyncio
 async def test_file_tail_receiver_extreme_edge_cases(parser, temp_log_file):
