@@ -53,18 +53,21 @@ class FindBar(QWidget):
         btn_prev = QPushButton("▲")
         btn_prev.setFixedSize(26, 24)
         btn_prev.setToolTip("Previous match (Shift+Enter)")
+        btn_prev.setAccessibleName("Previous match")
         btn_prev.clicked.connect(lambda: self.navigate.emit(-1))
         layout.addWidget(btn_prev)
 
         btn_next = QPushButton("▼")
         btn_next.setFixedSize(26, 24)
         btn_next.setToolTip("Next match (Enter)")
+        btn_next.setAccessibleName("Next match")
         btn_next.clicked.connect(lambda: self.navigate.emit(1))
         layout.addWidget(btn_next)
 
         btn_close = QPushButton("✕")
         btn_close.setFixedSize(26, 24)
         btn_close.setToolTip("Close (Esc)")
+        btn_close.setAccessibleName("Close find bar")
         btn_close.clicked.connect(self.close_bar)
         layout.addWidget(btn_close)
 
