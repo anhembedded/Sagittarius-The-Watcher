@@ -1,0 +1,3 @@
+## 2024-05-18 - Delegate Paint Loop Bottleneck
+**Learning:** In Qt/PySide6 architectures, the `paint()` method of a `QStyledItemDelegate` is a critical hot path, executed for every visible item during scrolling or data changes. Performing expensive operations like `re.compile()` within this loop causes noticeable UI lag. Python caches compiled regexes, but the dictionary lookup and function call still add significant overhead when called hundreds of times per second.
+**Action:** When creating custom Qt delegates that rely on regular expressions or other heavy computations, pre-calculate or compile these resources in setter methods (e.g., `set_term()`) and store them as instance variables, rather than computing them dynamically inside `paint()`.

@@ -22,11 +22,23 @@ class LogDelegate(QStyledItemDelegate):
         super().__init__(parent)
         self._term: str = ""
         self._use_regex: bool = False
+        self._compiled_regex: re.Pattern | None = None
 
     def set_term(self, term: str, use_regex: bool = False):
         """Set the search term to highlight. Empty string disables highlighting."""
         self._term = term
         self._use_regex = use_regex
+        self._compiled_regex = None
+        # Performance optimization:
+        # Pre-compile the search regex here in set_term() instead of dynamically
+        # compiling it inside the highly-frequent paint() method.
+        # This significantly reduces CPU overhead and prevents UI lag during fast scrolling
+        # when a regex search term is active.
+        if self._term and self._use_regex:
+            try:
+                self._compiled_regex = re.compile(self._term, re.IGNORECASE)
+            except re.error:
+                self._compiled_regex = None
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex):
         bg_brush = index.data(Qt.ItemDataRole.BackgroundRole)
@@ -73,15 +85,12 @@ class LogDelegate(QStyledItemDelegate):
             highlight_fmt.setForeground(QColor("#000000"))
 
             if self._use_regex:
-                try:
-                    pattern = re.compile(self._term, re.IGNORECASE)
-                    for match in pattern.finditer(text):
+                if self._compiled_regex:
+                    for match in self._compiled_regex.finditer(text):
                         cursor = QTextCursor(doc)
                         cursor.setPosition(match.start())
                         cursor.setPosition(match.end(), QTextCursor.MoveMode.KeepAnchor)
                         cursor.mergeCharFormat(highlight_fmt)
-                except re.error:
-                    pass
             else:
                 cursor = QTextCursor(doc)
                 find_flags = QTextDocument.FindFlag(0)
