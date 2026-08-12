@@ -30,7 +30,9 @@ class FilterPanel(QWidget):
         self.regex_checkbox = QCheckBox("Regex")
         self.bookmark_checkbox = QCheckBox("Show Bookmarks Only")
 
-        layout.addWidget(QLabel("Search:"))
+        search_label = QLabel("Search:")
+        search_label.setBuddy(self.search_input)
+        layout.addWidget(search_label)
         layout.addWidget(self.search_input)
         layout.addWidget(QLabel("Level:"))
 
