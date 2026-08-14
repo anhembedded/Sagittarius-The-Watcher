@@ -9,6 +9,7 @@ class LogFilterEngine:
 
     def __init__(self):
         self._filter_text = ""
+        self._filter_text_lower = ""
         self._filter_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         self._filter_regex = False
         self._compiled_regex = None
@@ -17,6 +18,7 @@ class LogFilterEngine:
 
     def set_text_filter(self, text: str, regex: bool):
         self._filter_text = text
+        self._filter_text_lower = text.lower() if text else ""
         self._filter_regex = regex
         self._compiled_regex = None
         if self._filter_regex and self._filter_text:
@@ -50,14 +52,13 @@ class LogFilterEngine:
 
         # Text filter
         if self._filter_text:
-            text_to_search = log.raw
             if self._filter_regex:
                 if self._compiled_regex is None:
                     return False
-                if not self._compiled_regex.search(text_to_search):
+                if not self._compiled_regex.search(log.raw):
                     return False
             else:
-                if self._filter_text.lower() not in text_to_search.lower():
+                if self._filter_text_lower not in log.raw_lower:
                     return False
 
         return True
