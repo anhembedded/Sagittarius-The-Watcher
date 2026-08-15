@@ -9,7 +9,9 @@ class LogFilterEngine:
 
     def __init__(self):
         self._filter_text = ""
+        self._filter_text_lower = ""
         self._filter_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        self._filter_levels_set = set(self._filter_levels)
         self._filter_regex = False
         self._compiled_regex = None
         self._filter_from_dt: datetime | None = None
@@ -24,9 +26,14 @@ class LogFilterEngine:
                 self._compiled_regex = re.compile(self._filter_text)
             except re.error:
                 self._compiled_regex = None
+        elif not self._filter_regex and self._filter_text:
+            self._filter_text_lower = self._filter_text.lower()
+        else:
+            self._filter_text_lower = ""
 
     def set_level_filter(self, levels: list[str]):
         self._filter_levels = levels
+        self._filter_levels_set = set(levels)
 
     def set_time_range(self, from_dt: datetime | None, to_dt: datetime | None):
         self._filter_from_dt = from_dt
@@ -34,8 +41,9 @@ class LogFilterEngine:
 
     def matches(self, log: LogEntry) -> bool:
         # Level filter
+        # Performance optimization: use O(1) set lookup instead of O(n) list lookup
         if log.level is not None:
-            if log.level.upper() not in self._filter_levels:
+            if log.level.upper() not in self._filter_levels_set:
                 return False
 
         # Time range filter (Feature 7)
@@ -49,15 +57,16 @@ class LogFilterEngine:
                 return False
 
         # Text filter
+        # Performance optimization: pre-calculate lowercase filter text in set_text_filter
+        # and use the lazily cached log.raw_lower property to avoid repeated lower() calls
         if self._filter_text:
-            text_to_search = log.raw
             if self._filter_regex:
                 if self._compiled_regex is None:
                     return False
-                if not self._compiled_regex.search(text_to_search):
+                if not self._compiled_regex.search(log.raw):
                     return False
             else:
-                if self._filter_text.lower() not in text_to_search.lower():
+                if self._filter_text_lower not in log.raw_lower:
                     return False
 
         return True
