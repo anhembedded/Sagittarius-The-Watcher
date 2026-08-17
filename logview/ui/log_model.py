@@ -537,8 +537,8 @@ class LogFilterProxyModel(QSortFilterProxyModel):
             val_r = log_right.level or ""
             return val_l < val_r
         elif col == COL_MESSAGE:
-            val_l = (log_left.message or log_left.raw).lower()
-            val_r = (log_right.message or log_right.raw).lower()
+            val_l = log_left.message_lower
+            val_r = log_right.message_lower
             return val_l < val_r
         elif col == COL_INDEX:
             try:
@@ -549,12 +549,12 @@ class LogFilterProxyModel(QSortFilterProxyModel):
                 val_r = log_right.index or ""
             return val_l < val_r
         elif col == COL_MODULE:
-            val_l = (log_left.module or "").lower()
-            val_r = (log_right.module or "").lower()
+            val_l = log_left.module_lower
+            val_r = log_right.module_lower
             return val_l < val_r
         elif col == COL_SUBMODULE:
-            val_l = (log_left.submodule or "").lower()
-            val_r = (log_right.submodule or "").lower()
+            val_l = log_left.submodule_lower
+            val_r = log_right.submodule_lower
             return val_l < val_r
         return super().lessThan(left, right)
 
