@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from logview.log_parser import LogParser, _try_parse_datetime
+from logview.log_parser import LogParser
 from logview.models import LogEntry
 
 
@@ -31,7 +31,8 @@ from logview.models import LogEntry
     ],
 )
 def test_try_parse_datetime_valid(ts_str, expected):
-    result = _try_parse_datetime(ts_str)
+    parser = LogParser("")
+    result = parser._try_parse_datetime(ts_str)
     assert result == expected
 
 
@@ -47,7 +48,8 @@ def test_try_parse_datetime_valid(ts_str, expected):
     ],
 )
 def test_try_parse_datetime_invalid(ts_str):
-    result = _try_parse_datetime(ts_str)
+    parser = LogParser("")
+    result = parser._try_parse_datetime(ts_str)
     assert result is None
 
 
