@@ -13,22 +13,6 @@ TIMESTAMP_FORMATS = [
 ]
 
 
-def _try_parse_datetime(ts_str: str | None) -> datetime | None:
-    """Attempt to parse a timestamp string into a datetime object."""
-    if not ts_str:
-        return None
-    try:
-        return datetime.fromisoformat(ts_str)
-    except (ValueError, TypeError):
-        pass
-    for fmt in TIMESTAMP_FORMATS:
-        try:
-            return datetime.strptime(ts_str.strip(), fmt)
-        except (ValueError, AttributeError):
-            continue
-    return None
-
-
 class LogParser:
     """Parses raw log strings into LogEntry objects based on a regex pattern.
     Also handles JSON-formatted lines as a fallback."""
@@ -40,6 +24,7 @@ class LogParser:
             pattern (str): The regex pattern containing named groups
                            like 'timestamp', 'level', and 'message'.
         """
+        self._last_successful_fmt: str | None = None
         try:
             self.pattern = re.compile(pattern)
         except re.error as e:
@@ -58,6 +43,39 @@ class LogParser:
                     "Falling back to a raw matching pattern to prevent application crash.",
                 )
             self.pattern = re.compile(r"^(?P<message>.*)")
+
+    def _try_parse_datetime(self, ts_str: str | None) -> datetime | None:
+        """Attempt to parse a timestamp string into a datetime object."""
+        if not ts_str:
+            return None
+        try:
+            return datetime.fromisoformat(ts_str)
+        except (ValueError, TypeError):
+            pass
+
+        try:
+            ts_str_stripped = ts_str.strip()
+        except AttributeError:
+            return None
+
+        # Fast path: try last successful format first
+        if self._last_successful_fmt:
+            try:
+                return datetime.strptime(ts_str_stripped, self._last_successful_fmt)
+            except (ValueError, AttributeError):
+                pass
+
+        # Slow path: iterate through formats
+        for fmt in TIMESTAMP_FORMATS:
+            if fmt == self._last_successful_fmt:
+                continue
+            try:
+                dt = datetime.strptime(ts_str_stripped, fmt)
+                self._last_successful_fmt = fmt
+                return dt
+            except (ValueError, AttributeError):
+                continue
+        return None
 
     def parse(self, line: str) -> LogEntry:
         """Parses a single log line (synchronously).
@@ -100,7 +118,7 @@ class LogParser:
                 entry.message = str(msg)
                 if continuation:
                     entry.message += "\n" + continuation
-                entry.parsed_dt = _try_parse_datetime(entry.timestamp)
+                entry.parsed_dt = self._try_parse_datetime(entry.timestamp)
                 return
             except (json.JSONDecodeError, AttributeError):
                 pass
@@ -119,7 +137,7 @@ class LogParser:
             entry.message = msg
             if continuation:
                 entry.message += "\n" + continuation
-            entry.parsed_dt = _try_parse_datetime(ts_str)
+            entry.parsed_dt = self._try_parse_datetime(ts_str)
             return
 
         entry.message = first_line
