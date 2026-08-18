@@ -36,6 +36,9 @@ class LogEntry:
         if not self.index:
             self.index = str(self.id)
         self._raw_lower: str | None = None
+        self._message_lower: str | None = None
+        self._module_lower: str | None = None
+        self._submodule_lower: str | None = None
 
     @property
     def raw_lower(self) -> str:
@@ -43,3 +46,24 @@ class LogEntry:
         if self._raw_lower is None:
             self._raw_lower = self.raw.lower()
         return self._raw_lower
+
+    @property
+    def message_lower(self) -> str:
+        """Lazily evaluates and caches the lowercase version of the message string."""
+        if self._message_lower is None:
+            self._message_lower = (self.message or self.raw).lower()
+        return self._message_lower
+
+    @property
+    def module_lower(self) -> str:
+        """Lazily evaluates and caches the lowercase version of the module string."""
+        if self._module_lower is None:
+            self._module_lower = (self.module or "").lower()
+        return self._module_lower
+
+    @property
+    def submodule_lower(self) -> str:
+        """Lazily evaluates and caches the lowercase version of the submodule string."""
+        if self._submodule_lower is None:
+            self._submodule_lower = (self.submodule or "").lower()
+        return self._submodule_lower
