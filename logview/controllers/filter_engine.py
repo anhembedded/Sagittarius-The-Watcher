@@ -43,7 +43,7 @@ class LogFilterEngine:
         # Level filter
         # Performance optimization: use O(1) set lookup instead of O(n) list lookup
         if log.level is not None:
-            if log.level.upper() not in self._filter_levels_set:
+            if log.level_upper not in self._filter_levels_set:
                 return False
 
         # Time range filter (Feature 7)

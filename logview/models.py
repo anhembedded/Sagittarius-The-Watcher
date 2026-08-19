@@ -39,6 +39,14 @@ class LogEntry:
         self._message_lower: str | None = None
         self._module_lower: str | None = None
         self._submodule_lower: str | None = None
+        self._level_upper: str | None = None
+
+    @property
+    def level_upper(self) -> str:
+        """Lazily evaluates and caches the uppercase version of the level string."""
+        if self._level_upper is None:
+            self._level_upper = (self.level or "").upper()
+        return self._level_upper
 
     @property
     def raw_lower(self) -> str:
