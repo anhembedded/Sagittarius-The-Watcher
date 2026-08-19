@@ -88,6 +88,7 @@ class TimeRangeWidget(QWidget):
         self._from_dt.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
         self._from_dt.setEnabled(False)
         self._from_dt.setCalendarPopup(True)
+        self._from_dt.setAccessibleName("Start Time")
         self._from_dt.dateTimeChanged.connect(self._on_changed)
         layout.addWidget(self._from_dt)
 
@@ -97,6 +98,7 @@ class TimeRangeWidget(QWidget):
         self._to_dt.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
         self._to_dt.setEnabled(False)
         self._to_dt.setCalendarPopup(True)
+        self._to_dt.setAccessibleName("End Time")
         self._to_dt.dateTimeChanged.connect(self._on_changed)
         layout.addWidget(self._to_dt)
 

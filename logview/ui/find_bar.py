@@ -31,10 +31,12 @@ class FindBar(QWidget):
         layout.setContentsMargins(6, 2, 6, 2)
         layout.setSpacing(4)
 
-        layout.addWidget(QLabel("Find:"))
+        find_label = QLabel("Find:")
+        layout.addWidget(find_label)
 
         self._input = QLineEdit()
         self._input.setPlaceholderText("Search in logs…")
+        find_label.setBuddy(self._input)
         self._input.setFixedWidth(240)
         self._input.textChanged.connect(self._emit_term_changed)
         self._input.returnPressed.connect(lambda: self.navigate.emit(1))
