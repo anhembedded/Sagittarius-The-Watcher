@@ -12,3 +12,6 @@
 ## 2024-05-19 - Repeated Timestamp Format Parsing Optimization
 **Learning:** In log ingestion loops, checking a raw timestamp string against a list of format definitions using repeated `datetime.strptime()` generates significant overhead due to consecutive `ValueError` exceptions for failed format matches. Because standard log files almost universally maintain a consistent timestamp format, this repetitive failing on $O(n)$ formats is extremely wasteful.
 **Action:** Optimize timestamp parsing by caching the last successfully matched format string as an instance variable (`self._last_successful_fmt`). Check this cached format first. If it matches, immediately return the parsed `datetime`, successfully bypassing the slow-path iteration entirely and yielding an $O(1)$ fast path. This dropped parsing time from ~0.77s to ~0.24s in benchmarks.
+## 2024-05-18 - [Performance] Cache upper/lower conversions in models
+**Learning:** PySide models, especially custom proxy filter models and delegates, query row data extremely frequently (e.g., during filtering or redraws). Recomputing `.upper()` or `.lower()` on each item role query or filter check adds up to a huge overhead.
+**Action:** Always lazily evaluate and cache these values directly in the `LogEntry` dataclass as properties (e.g., `_level_upper`, `_raw_lower`).

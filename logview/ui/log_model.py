@@ -148,14 +148,14 @@ class LogModel(QAbstractTableModel):
                 return QBrush(QColor(100, 150, 255, fade))
 
             if log.level:
-                lvl = log.level.upper()
+                lvl = log.level_upper
                 colors = self._level_colors.get(lvl)
                 if colors and colors[0] is not None:
                     return QBrush(colors[0])
 
         elif role == Qt.ItemDataRole.ForegroundRole:
             if log.level:
-                lvl = log.level.upper()
+                lvl = log.level_upper
                 colors = self._level_colors.get(lvl)
                 if colors and colors[1] is not None:
                     return QBrush(colors[1])
@@ -186,14 +186,14 @@ class LogModel(QAbstractTableModel):
             if fade > 0:
                 return QColor(100, 150, 255, fade).name()
             if log.level:
-                lvl = log.level.upper()
+                lvl = log.level_upper
                 colors = self._level_colors.get(lvl)
                 if colors and colors[0] is not None:
                     return colors[0].name()
             return "transparent"
         elif role == self.RoleFgColor:
             if log.level:
-                lvl = log.level.upper()
+                lvl = log.level_upper
                 colors = self._level_colors.get(lvl)
                 if colors and colors[1] is not None:
                     return colors[1].name()
@@ -277,7 +277,7 @@ class LogModel(QAbstractTableModel):
             self._all_logs.append(log)
 
             if log.level:
-                lvl = log.level.upper()
+                lvl = log.level_upper
                 self._level_counts[lvl] = self._level_counts.get(lvl, 0) + 1
 
             if log.is_new:
@@ -294,7 +294,7 @@ class LogModel(QAbstractTableModel):
 
             for log in removed_logs:
                 if log.level:
-                    lvl = log.level.upper()
+                    lvl = log.level_upper
                     if lvl in self._level_counts:
                         self._level_counts[lvl] = max(0, self._level_counts[lvl] - 1)
                         if self._level_counts[lvl] == 0:
@@ -426,7 +426,7 @@ class LogFilterProxyModel(QSortFilterProxyModel):
             if source_idx.row() < len(source._all_logs):
                 log = source._all_logs[source_idx.row()]
                 if log.level:
-                    lvl = log.level.upper()
+                    lvl = log.level_upper
                     if lvl in ("ERROR", "CRITICAL"):
                         self._error_rows.append(i)
                     elif lvl == "WARNING":
