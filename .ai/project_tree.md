@@ -278,18 +278,11 @@ import json
 from datetime import datetime
 from logview.models import LogEntry
 
+
 def export_logs(entries: List[LogEntry], filepath: str, format: str = "log"):
-    
+
     if format == "json":
-        data = [
-            {
-                "timestamp": e.timestamp,
-                "level": e.level,
-                "message": e.message,
-                "raw": e.raw
-            }
-            for e in entries
-        ]
+        data = [{"timestamp": e.timestamp, "level": e.level, "message": e.message, "raw": e.raw} for e in entries]
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
     else:
@@ -297,10 +290,11 @@ def export_logs(entries: List[LogEntry], filepath: str, format: str = "log"):
             for entry in entries:
                 f.write(entry.raw + "\n")
 
+
 def save_session(entries: List[LogEntry], filepath: str):
-    
-    if not filepath.endswith('.lvsession'):
-        filepath += '.lvsession'
+
+    if not filepath.endswith(".lvsession"):
+        filepath += ".lvsession"
 
     data = {
         "version": 1,
@@ -314,13 +308,14 @@ def save_session(entries: List[LogEntry], filepath: str):
                 "parsed_dt": e.parsed_dt.isoformat() if e.parsed_dt else None,
             }
             for e in entries
-        ]
+        ],
     }
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
+
 def load_session(filepath: str) -> List[LogEntry]:
-    
+
     with open(filepath, "r", encoding="utf-8") as f:
         data = json.load(f)
 
@@ -333,14 +328,16 @@ def load_session(filepath: str) -> List[LogEntry]:
                 parsed_dt = datetime.fromisoformat(dt_str)
             except (ValueError, TypeError):
                 pass
-        entries.append(LogEntry(
-            raw=item.get("raw", ""),
-            timestamp=item.get("timestamp"),
-            level=item.get("level"),
-            message=item.get("message", ""),
-            is_new=False,
-            parsed_dt=parsed_dt,
-        ))
+        entries.append(
+            LogEntry(
+                raw=item.get("raw", ""),
+                timestamp=item.get("timestamp"),
+                level=item.get("level"),
+                message=item.get("message", ""),
+                is_new=False,
+                parsed_dt=parsed_dt,
+            )
+        )
     return entries
 ``````
 
@@ -500,9 +497,9 @@ from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
 
+
 @dataclass
 class LogEntry:
-    
     raw: str
     timestamp: Optional[str] = None
     level: Optional[str] = None
@@ -523,7 +520,7 @@ class LogEntry:
 
     @property
     def raw_lower(self) -> str:
-        
+
         if self._raw_lower is None:
             self._raw_lower = self.raw.lower()
         return self._raw_lower
@@ -2482,8 +2479,8 @@ from PySide6.QtCore import QThread, Signal
 from logview.receiver import TCPServerReceiver, FileTailReceiver
 from logview.log_parser import LogParser
 
+
 class ReceiverWorker(QThread):
-    
     logs_received = Signal(list)
     error_occurred = Signal(str)
     client_connected = Signal(str)
@@ -2506,9 +2503,7 @@ class ReceiverWorker(QThread):
         self._async_queue = asyncio.Queue()
 
         if "tail_file" in self.config and self.config["tail_file"]:
-            self._receivers.append(
-                FileTailReceiver(self.config["tail_file"], self.parser, self._async_queue)
-            )
+            self._receivers.append(FileTailReceiver(self.config["tail_file"], self.parser, self._async_queue))
         else:
             host = self.config.get("server", {}).get("host", "localhost")
             port = self.config.get("server", {}).get("port", 9999)
@@ -2522,13 +2517,12 @@ class ReceiverWorker(QThread):
         self.loop.close()
 
     async def _run_async(self):
-        
+
         for r in self._receivers:
             await r.start()
 
         try:
             while self.running:
-
                 await asyncio.sleep(0.05)
 
                 logs = []
@@ -2540,7 +2534,6 @@ class ReceiverWorker(QThread):
                         break
 
                 if logs:
-
                     list(self._executor.map(self.parser.parse_fields, logs))
                     self.logs_received.emit(logs)
         except Exception as e:
@@ -3306,9 +3299,10 @@ Write-Host "Done!" -ForegroundColor Green
 ```python
 import pytest
 
+
 @pytest.fixture(autouse=True)
 def isolate_config(tmp_path, monkeypatch):
-    
+
     config_file = tmp_path / "logview_test.toml"
     config_content = r
     config_file.write_text(config_content, encoding="utf-8")
@@ -4048,6 +4042,7 @@ from unittest.mock import patch
 
 from logview.config import get_config, load_toml
 
+
 def test_load_toml_valid():
     with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as f:
         f.write("[server]\nhost = '127.0.0.1'\nport = 8080\n")
@@ -4059,6 +4054,7 @@ def test_load_toml_valid():
         assert config["server"]["port"] == 8080
     finally:
         os.unlink(temp_path)
+
 
 @patch("logview.config.parse_args")
 def test_get_config_with_cli_args(mock_parse_args):
@@ -4083,12 +4079,16 @@ from datetime import datetime
 from logview.models import LogEntry
 from logview.export import export_logs, save_session, load_session
 
+
 @pytest.fixture
 def sample_logs():
     return [
         LogEntry(raw="raw1", timestamp="t1", level="INFO", message="msg1"),
-        LogEntry(raw="raw2", timestamp="t2", level="ERROR", message="msg2", parsed_dt=datetime(2023, 10, 26, 10, 20, 30))
+        LogEntry(
+            raw="raw2", timestamp="t2", level="ERROR", message="msg2", parsed_dt=datetime(2023, 10, 26, 10, 20, 30)
+        ),
     ]
+
 
 def test_export_logs_text(sample_logs):
     with tempfile.NamedTemporaryFile("w", delete=False) as f:
@@ -4103,6 +4103,7 @@ def test_export_logs_text(sample_logs):
     finally:
         os.unlink(temp_path)
 
+
 def test_export_logs_json(sample_logs):
     with tempfile.NamedTemporaryFile("w", delete=False) as f:
         temp_path = f.name
@@ -4116,6 +4117,7 @@ def test_export_logs_json(sample_logs):
         assert data[1]["message"] == "msg2"
     finally:
         os.unlink(temp_path)
+
 
 def test_save_load_session(sample_logs):
     with tempfile.NamedTemporaryFile("w", suffix=".lvsession", delete=False) as f:
@@ -4139,6 +4141,7 @@ def test_save_load_session(sample_logs):
         if os.path.exists(temp_path):
             os.unlink(temp_path)
 
+
 def test_save_session_appends_extension(sample_logs):
     with tempfile.NamedTemporaryFile("w", delete=False) as f:
         base_path = f.name
@@ -4158,6 +4161,7 @@ def test_save_session_appends_extension(sample_logs):
         if os.path.exists(base_path + ".lvsession"):
             os.unlink(base_path + ".lvsession")
 
+
 def test_load_session_handles_invalid_date():
     with tempfile.NamedTemporaryFile("w", suffix=".lvsession", delete=False) as f:
         temp_path = f.name
@@ -4172,7 +4176,7 @@ def test_load_session_handles_invalid_date():
                     "message": "msg",
                     "parsed_dt": "not-a-valid-iso-date",
                 }
-            ]
+            ],
         }
         json.dump(data, f)
 
@@ -4193,6 +4197,7 @@ def test_load_session_handles_invalid_date():
 import pytest
 from logview.controllers.filter_engine import LogFilterEngine
 from logview.models import LogEntry
+
 
 def test_filter_engine_multi_level():
     engine = LogFilterEngine()
@@ -4423,6 +4428,7 @@ assert parser.is_new_entry("at db.py:45") is False
 import pytest
 from logview.models import LogEntry
 
+
 def test_log_entry_auto_id():
     entry1 = LogEntry(raw="test1")
     entry2 = LogEntry(raw="test2")
@@ -4430,6 +4436,7 @@ def test_log_entry_auto_id():
     assert entry1.id is not None
     assert entry2.id is not None
     assert entry1.id != entry2.id
+
 
 def test_log_entry_custom_id():
     entry = LogEntry(raw="test", id="custom_id")

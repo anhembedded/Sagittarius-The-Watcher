@@ -24,6 +24,14 @@ class LogDelegate(QStyledItemDelegate):
         self._use_regex: bool = False
         self._compiled_regex: re.Pattern | None = None
 
+        # Performance optimization: Cache QTextDocument and QTextCharFormat
+        # to prevent creating new objects for every cell in every repaint.
+        self._doc = QTextDocument()
+        self._doc.setDocumentMargin(0)
+        self._highlight_fmt = QTextCharFormat()
+        self._highlight_fmt.setBackground(QColor("#FFFF00"))
+        self._highlight_fmt.setForeground(QColor("#000000"))
+
     def set_term(self, term: str, use_regex: bool = False):
         """Set the search term to highlight. Empty string disables highlighting."""
         self._term = term
@@ -75,34 +83,28 @@ class LogDelegate(QStyledItemDelegate):
             text_rect = style.subElementRect(QStyle.SubElement.SE_ItemViewItemText, opt, opt.widget)
             painter.setClipRect(text_rect)
 
-            doc = QTextDocument()
-            doc.setDocumentMargin(0)
-            doc.setDefaultFont(opt.font)
-            doc.setPlainText(text)
-
-            highlight_fmt = QTextCharFormat()
-            highlight_fmt.setBackground(QColor("#FFFF00"))
-            highlight_fmt.setForeground(QColor("#000000"))
+            self._doc.setDefaultFont(opt.font)
+            self._doc.setPlainText(text)
 
             if self._use_regex:
                 if self._compiled_regex:
                     for match in self._compiled_regex.finditer(text):
-                        cursor = QTextCursor(doc)
+                        cursor = QTextCursor(self._doc)
                         cursor.setPosition(match.start())
                         cursor.setPosition(match.end(), QTextCursor.MoveMode.KeepAnchor)
-                        cursor.mergeCharFormat(highlight_fmt)
+                        cursor.mergeCharFormat(self._highlight_fmt)
             else:
-                cursor = QTextCursor(doc)
+                cursor = QTextCursor(self._doc)
                 find_flags = QTextDocument.FindFlag(0)
                 while True:
-                    cursor = doc.find(self._term, cursor, find_flags)
+                    cursor = self._doc.find(self._term, cursor, find_flags)
                     if cursor.isNull():
                         break
-                    cursor.mergeCharFormat(highlight_fmt)
+                    cursor.mergeCharFormat(self._highlight_fmt)
 
             painter.translate(text_rect.topLeft())
-            doc.setTextWidth(text_rect.width())
-            ctx = doc.documentLayout().PaintContext()
+            self._doc.setTextWidth(text_rect.width())
+            ctx = self._doc.documentLayout().PaintContext()
 
             # Keep selected text color if row is selected and not matched by term
             if opt.state & QStyle.StateFlag.State_Selected:
@@ -114,7 +116,7 @@ class LogDelegate(QStyledItemDelegate):
                 if fg_brush:
                     ctx.palette.setBrush(ctx.palette.ColorRole.Text, fg_brush)
 
-            doc.documentLayout().draw(painter, ctx)
+            self._doc.documentLayout().draw(painter, ctx)
             painter.restore()
         else:
             style = opt.widget.style() if opt.widget else QApplication.style()
