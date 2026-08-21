@@ -15,3 +15,7 @@
 ## 2024-05-18 - [Performance] Cache upper/lower conversions in models
 **Learning:** PySide models, especially custom proxy filter models and delegates, query row data extremely frequently (e.g., during filtering or redraws). Recomputing `.upper()` or `.lower()` on each item role query or filter check adds up to a huge overhead.
 **Action:** Always lazily evaluate and cache these values directly in the `LogEntry` dataclass as properties (e.g., `_level_upper`, `_raw_lower`).
+
+## 2026-08-21 - Expensive Object Instantiation in Delegate Paint Loop Bottleneck
+**Learning:** Instantiating objects like `QTextDocument` and `QTextCharFormat` dynamically inside the highly-frequent `QStyledItemDelegate.paint()` method causes significant performance overhead and unnecessary memory allocations, leading to UI lag during fast scrolling.
+**Action:** Pre-compute and cache expensive layout/format objects as instance variables within the delegate's `__init__` method, and re-use these objects inside the `paint()` method by resetting their specific properties (e.g., text, font) instead of creating new instances.
