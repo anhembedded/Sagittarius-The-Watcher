@@ -3,6 +3,7 @@ import time
 import sys
 import os
 
+
 def main():
     """
     Runs the Log Viewer GUI in the background, and then starts the log generator
@@ -37,6 +38,7 @@ def main():
         if gen_process.poll() is None:
             gen_process.terminate()
         print("Done.")
+
 
 if __name__ == "__main__":
     main()

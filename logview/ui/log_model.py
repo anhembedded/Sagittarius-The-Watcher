@@ -13,11 +13,11 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtQml import QmlElement
 
-QML_IMPORT_NAME = "LogView.Models"
-QML_IMPORT_MAJOR_VERSION = 1
-
 from logview.controllers.filter_engine import LogFilterEngine
 from logview.models import LogEntry
+
+QML_IMPORT_NAME = "LogView.Models"
+QML_IMPORT_MAJOR_VERSION = 1
 
 # Constants for column indices
 COL_BOOKMARK = 0

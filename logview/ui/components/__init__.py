@@ -26,6 +26,7 @@ class FilterPanel(QWidget):
 
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Filter logs...")
+        self.search_input.setClearButtonEnabled(True)
 
         self.regex_checkbox = QCheckBox("Regex")
         self.bookmark_checkbox = QCheckBox("Show Bookmarks Only")
