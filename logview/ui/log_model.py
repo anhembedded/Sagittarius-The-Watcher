@@ -541,13 +541,13 @@ class LogFilterProxyModel(QSortFilterProxyModel):
             val_r = log_right.message_lower
             return val_l < val_r
         elif col == COL_INDEX:
+            val_l = log_left.index_num
+            val_r = log_right.index_num
+            # Fallback for mixed types comparison (e.g., one int and one str if a row failed parsing and another succeeded)
             try:
-                val_l = int(log_left.index or 0)
-                val_r = int(log_right.index or 0)
-            except ValueError:
-                val_l = log_left.index or ""
-                val_r = log_right.index or ""
-            return val_l < val_r
+                return val_l < val_r
+            except TypeError:
+                return str(val_l) < str(val_r)
         elif col == COL_MODULE:
             val_l = log_left.module_lower
             val_r = log_right.module_lower

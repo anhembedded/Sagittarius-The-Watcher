@@ -15,3 +15,7 @@
 ## 2024-05-18 - [Performance] Cache upper/lower conversions in models
 **Learning:** PySide models, especially custom proxy filter models and delegates, query row data extremely frequently (e.g., during filtering or redraws). Recomputing `.upper()` or `.lower()` on each item role query or filter check adds up to a huge overhead.
 **Action:** Always lazily evaluate and cache these values directly in the `LogEntry` dataclass as properties (e.g., `_level_upper`, `_raw_lower`).
+
+## 2024-05-18 - String Integer Casting in lessThan loop
+**Learning:** In Qt/PySide6 sorting algorithms (`QSortFilterProxyModel.lessThan`), doing `try/except` integer casting (`int()`) on strings inside the sort comparison loop turns into an $O(N \log N)$ bottleneck, as it gets called continuously for every single comparison during sorting.
+**Action:** Always pre-calculate and lazily cache typed versions of strings for sorting directly inside the data models (like `LogEntry.index_num`) instead of doing it inline within the `lessThan` function. Add a fallback exception handler for `TypeError` when dealing with heterogeneously parsed columns.
