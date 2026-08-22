@@ -40,6 +40,7 @@ class LogEntry:
         self._module_lower: str | None = None
         self._submodule_lower: str | None = None
         self._level_upper: str | None = None
+        self._index_num: int | str | None = None
 
     @property
     def level_upper(self) -> str:
@@ -75,3 +76,13 @@ class LogEntry:
         if self._submodule_lower is None:
             self._submodule_lower = (self.submodule or "").lower()
         return self._submodule_lower
+
+    @property
+    def index_num(self) -> int | str:
+        """Lazily evaluates and caches the integer representation of the index string for faster sorting."""
+        if self._index_num is None:
+            try:
+                self._index_num = int(self.index or 0)
+            except ValueError:
+                self._index_num = self.index or ""
+        return self._index_num
